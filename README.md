@@ -218,6 +218,9 @@ See the [`wsc-lint` README](cli/README.md) for full documentation.
   with:
     files: '**/*.md'
     max-warnings: 20
+    exclude: |
+      CHANGELOG.md
+      vendor/**
 ```
 
 | Input | Default | Description |
@@ -226,6 +229,7 @@ See the [`wsc-lint` README](cli/README.md) for full documentation.
 | `config` | — | Path to `.wscrc.json` config file |
 | `max-warnings` | unlimited | Max warnings before failing |
 | `only-changed` | `false` | Only check files changed in this PR |
+| `exclude` | — | Glob patterns to skip. Separate with a comma or a new line. Adds to config `ignore`. |
 
 ---
 

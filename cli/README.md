@@ -34,6 +34,9 @@ echo "The code was written very quickly." | wsc check --stdin
 # Use a config file
 wsc check "**/*.md" --config .wscrc.json
 
+# Skip files (stacks with config ignore)
+wsc check "**/*.md" --ignore "CHANGELOG.md,vendor/**"
+
 # Output as JSON
 wsc check "**/*.md" --format json
 
@@ -52,6 +55,7 @@ wsc check "**/*.md" --quiet
 | Option | Description |
 |--------|-------------|
 | `--config <path>` | Path to `.wscrc.json` config file |
+| `--ignore <patterns>` | Glob patterns to skip (comma or newline separated). Adds to config `ignore`. |
 | `--format <format>` | Output format: `text` (default), `json`, `github` |
 | `--no-color` | Disable colored output |
 | `--quiet` | Only show summary |

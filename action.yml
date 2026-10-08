@@ -20,6 +20,10 @@ inputs:
     description: 'Only check files changed in this PR'
     required: false
     default: 'false'
+  exclude:
+    description: 'Glob patterns to skip (comma or newline separated). Stacks with config ignore'
+    required: false
+    default: ''
 outputs:
   total-issues:
     description: 'Total number of issues found'
@@ -59,6 +63,7 @@ runs:
         WSC_FILES: ${{ steps.changed.outputs.files || inputs.files }}
         WSC_CONFIG: ${{ inputs.config }}
         WSC_MAX: ${{ inputs.max-warnings }}
+        WSC_EXCLUDE: ${{ inputs.exclude }}
       run: |
         # Inputs arrive via env vars (not workflow-expression interpolation)
         # to avoid shell injection, and `set -f` stops the runner shell from
@@ -67,6 +72,8 @@ runs:
         args=(check $WSC_FILES --format github)
         if [ -n "$WSC_CONFIG" ]; then args+=(--config "$WSC_CONFIG"); fi
         if [ "$WSC_MAX" != "-1" ]; then args+=(--max-warnings "$WSC_MAX"); fi
+        # Quoted so a multiline exclude list is one argv; the CLI splits it.
+        if [ -n "$WSC_EXCLUDE" ]; then args+=(--ignore "$WSC_EXCLUDE"); fi
 
         # Capture output (so we can read the issue count) without tripping
         # `set -e`, then re-emit it so ::warning annotations register.

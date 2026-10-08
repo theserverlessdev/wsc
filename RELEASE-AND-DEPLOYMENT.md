@@ -321,6 +321,7 @@ Users add this to their workflow:
 | `config` | _(none)_ | Path to `.wscrc.json` config file |
 | `max-warnings` | `-1` (unlimited) | Maximum warnings before failing |
 | `only-changed` | `false` | Only check files changed in this PR |
+| `exclude` | _(none)_ | Glob patterns to skip (comma or newline separated). Adds to config `ignore`. |
 
 ### Outputs
 

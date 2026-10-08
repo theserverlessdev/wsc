@@ -244,3 +244,75 @@ describe('run() — honors config ignore globs', () => {
     expect(results[0].file).not.toContain('SKIP.md');
   });
 });
+
+describe('run() — --ignore stacks with config ignore', () => {
+  let dir: string;
+  let cwd: string;
+  let out: ReturnType<typeof vi.spyOn>;
+  let captured: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'wsc-cliignore-'));
+    writeFileSync(join(dir, 'doc.md'), NOISY);
+    writeFileSync(join(dir, 'SKIP.md'), NOISY);
+    writeFileSync(join(dir, 'OTHER.md'), NOISY);
+    captured = '';
+    out = vi.spyOn(process.stdout, 'write').mockImplementation((s: any) => {
+      captured += String(s);
+      return true;
+    });
+    cwd = process.cwd();
+    process.chdir(dir);
+  });
+
+  afterEach(() => {
+    process.chdir(cwd);
+    out.mockRestore();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('checks every matched file when --ignore is omitted', async () => {
+    await run(['node', 'wsc', 'check', '**/*.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file).sort();
+    expect(files).toHaveLength(3);
+    expect(files.some((f: string) => f.endsWith('doc.md'))).toBe(true);
+    expect(files.some((f: string) => f.endsWith('SKIP.md'))).toBe(true);
+    expect(files.some((f: string) => f.endsWith('OTHER.md'))).toBe(true);
+  });
+
+  it('excludes a single glob passed to --ignore', async () => {
+    await run(['node', 'wsc', 'check', '**/*.md', '--ignore', 'SKIP.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file);
+    expect(files).toHaveLength(2);
+    expect(files.some((f: string) => f.endsWith('SKIP.md'))).toBe(false);
+  });
+
+  it('excludes multiple comma-separated globs', async () => {
+    await run(['node', 'wsc', 'check', '**/*.md', '--ignore', 'SKIP.md,OTHER.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain('doc.md');
+  });
+
+  it('excludes multiple newline-separated globs (Action exclude input)', async () => {
+    await run(['node', 'wsc', 'check', '**/*.md', '--ignore', 'SKIP.md\nOTHER.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain('doc.md');
+  });
+
+  it('unions --ignore with config ignore (neither replaces the other)', async () => {
+    writeFileSync(join(dir, '.wscrc.json'), JSON.stringify({ ignore: ['SKIP.md'] }));
+    await run(['node', 'wsc', 'check', '**/*.md', '--ignore', 'OTHER.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain('doc.md');
+  });
+
+  it('still applies --ignore when files are explicit paths (only-changed)', async () => {
+    await run(['node', 'wsc', 'check', 'doc.md', 'SKIP.md', '--ignore', 'SKIP.md', '--format', 'json']);
+    const files = JSON.parse(captured).map((r: { file: string }) => r.file);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toContain('doc.md');
+  });
+});
