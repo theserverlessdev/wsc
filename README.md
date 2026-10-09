@@ -4,7 +4,9 @@
 [![npm](https://img.shields.io/npm/v/wsc-mcp)](https://www.npmjs.com/package/wsc-mcp)
 [![smithery badge](https://smithery.ai/badge/theserverlessdev/wsc)](https://smithery.ai/servers/theserverlessdev/wsc)
 [![wsc MCP server](https://glama.ai/mcp/servers/theserverlessdev/wsc/badges/score.svg)](https://glama.ai/mcp/servers/theserverlessdev/wsc)
+[![M8ven Score](https://m8ven.ai/badge/mcp/theserverlessdev-wsc-lk7nsr?v=4f1a6e26d86fe4e3d5efdae72f1d1471)](https://m8ven.ai/mcp/theserverlessdev-wsc-lk7nsr?s=readme)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 
 A prose linter and AI-slop detector. WSC finds **AI tells** — words, phrases, and sentence structures overrepresented in AI-generated text, each flag backed by a published corpus study. It also catches classic writing issues: **weasel words**, **passive voice**, **duplicate words**, **long sentences**, **nominalizations**, **hedging**, and **filler adverbs**. Available as a web editor, HTTP API, MCP server, CLI, and GitHub Action.
 
