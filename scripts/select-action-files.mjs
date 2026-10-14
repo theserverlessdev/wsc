@@ -1,5 +1,6 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Decide which paths the GitHub Action passes to `wsc check`.
@@ -40,7 +41,13 @@ function splitTokens(value) {
 function isDirectRun() {
   const entry = process.argv[1];
   if (!entry) return false;
-  return import.meta.url === pathToFileURL(entry).href;
+  // import.meta.url is the real path; argv[1] may run through a symlink
+  // (e.g. a self-hosted runner work dir, or /tmp on macOS).
+  try {
+    return realpathSync(entry) === fileURLToPath(import.meta.url);
+  } catch {
+    return false;
+  }
 }
 
 if (isDirectRun()) {
