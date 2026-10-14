@@ -17,7 +17,7 @@ inputs:
     required: false
     default: '-1'
   only-changed:
-    description: 'Only check files changed in this PR'
+    description: 'On pull requests, check changed files that match files. If none match, skip (exit 0, total-issues 0). Other events check files.'
     required: false
     default: 'false'
   exclude:
@@ -51,16 +51,20 @@ runs:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        # `grep` exits 1 when a PR touches no doc files; swallow it so the
-        # step (bash runs with -eo pipefail) doesn't fail on an empty diff.
-        files=$(gh pr diff "$PR_NUMBER" --name-only | { grep -E '\.(md|txt|rst)$' || true; } | tr '\n' ' ')
+        # List every changed path. The check step intersects this list with
+        # the `files` glob. An empty list is success: the check step skips
+        # and does not fall back to the full glob.
+        files=$(gh pr diff "$PR_NUMBER" --name-only | tr '\n' ' ')
         echo "files=$files" >> "$GITHUB_OUTPUT"
 
     - name: Run wsc check
       id: check
       shell: bash
       env:
-        WSC_FILES: ${{ steps.changed.outputs.files || inputs.files }}
+        WSC_CHANGED: ${{ steps.changed.outputs.files }}
+        WSC_FILES: ${{ inputs.files }}
+        WSC_ONLY_CHANGED: ${{ inputs.only-changed }}
+        WSC_EVENT_NAME: ${{ github.event_name }}
         WSC_CONFIG: ${{ inputs.config }}
         WSC_MAX: ${{ inputs.max-warnings }}
         WSC_EXCLUDE: ${{ inputs.exclude }}
@@ -69,7 +73,21 @@ runs:
         # to avoid shell injection, and `set -f` stops the runner shell from
         # pre-expanding globs like **/*.md — the CLI globs them itself.
         set -f
-        args=(check $WSC_FILES --format github)
+        # Exit 10: only-changed PR with no paths matching `files`. Any other
+        # non-zero status is a real failure. `||` keeps `set -e` from exiting
+        # before we can handle the skip.
+        code=0
+        check_files=$(node --no-warnings "$GITHUB_ACTION_PATH/scripts/select-action-files.mjs") || code=$?
+        if [ "$code" -eq 10 ]; then
+          echo "No files matching the files pattern changed in this pull request. Skipping check."
+          echo "total-issues=0" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [ "$code" -ne 0 ]; then
+          echo "Could not decide which files to check." >&2
+          exit "$code"
+        fi
+        args=(check $check_files --format github)
         if [ -n "$WSC_CONFIG" ]; then args+=(--config "$WSC_CONFIG"); fi
         if [ "$WSC_MAX" != "-1" ]; then args+=(--max-warnings "$WSC_MAX"); fi
         # Quoted so a multiline exclude list is one argv; the CLI splits it.

@@ -21,6 +21,18 @@ Generate a starter config with the CLI:
 npx wsc-lint init
 ```
 
+### Ignoring files
+
+`ignore` is an array of glob patterns. Each pattern is relative to the working directory. The GitHub Action runs from the repository root.
+
+The CLI skips `**/node_modules/**` and `**/.git/**` on every file check. It adds `ignore` patterns to that list, along with the Action `exclude` input and the CLI `--ignore` flag.
+
+```json
+{
+  "ignore": ["CHANGELOG.md", "docs/vendor/**"]
+}
+```
+
 ### Detector Reference
 
 All 8 detectors run by default. Set `enabled: false` to disable any detector.
@@ -67,6 +79,7 @@ The full pattern list with names appears on the [Word Library](/words) page unde
 ```json
 {
   "$schema": "https://wsc.theserverless.dev/schema.json",
+  "ignore": ["CHANGELOG.md"],
   "detectors": {
     "weaselWords": {
       "add": ["arguably", "basically"],
