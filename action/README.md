@@ -19,7 +19,7 @@ Check your writing for style issues in CI. Detects weasel words, passive voice, 
 | `files` | Glob pattern for files to check | `**/*.md` |
 | `config` | Path to `.wscrc.json` config file | — |
 | `max-warnings` | Max warnings before failing | `-1` (unlimited) |
-| `only-changed` | Only check files changed in this PR | `false` |
+| `only-changed` | On a pull request, check changed files that match `files`. If none match, skip the check. Other events check `files`. | `false` |
 | `exclude` | Glob patterns to skip (comma or newline separated). Adds to config `ignore`. | — |
 
 ## Outputs

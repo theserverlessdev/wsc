@@ -26,7 +26,7 @@ jobs:
 | `files` | `**/*.md` | Glob pattern for files to check |
 | `config` | _(none)_ | Path to `.wscrc.json` config file |
 | `max-warnings` | `-1` (unlimited) | Maximum warnings before failing |
-| `only-changed` | `false` | Only check files changed in this PR |
+| `only-changed` | `false` | On a pull request, check changed files that match `files`. If none match, skip the check. Other events check `files`. |
 | `exclude` | _(none)_ | Glob patterns to skip. Separate with a comma or a new line. Adds to config `ignore`. |
 
 ### Outputs
@@ -55,6 +55,8 @@ jobs:
           only-changed: "true"
           max-warnings: "10"
 ```
+
+On a pull request, `only-changed: true` checks changed files that match `files`. If none match, the action logs a message, exits 0, and sets `total-issues` to 0. On push and other events, it checks `files`.
 
 ### With Custom Config
 

@@ -12,7 +12,7 @@
     "ignore": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Glob patterns (relative to the working dir) to exclude from checking, e.g. internal docs like CHANGELOG.md"
+      "description": "Glob patterns relative to the working directory (the repository root for the GitHub Action). Unioned with the built-in **/node_modules/** and **/.git/** skips, the Action exclude input, and the CLI --ignore flag."
     },
     "detectors": {
       "type": "object",

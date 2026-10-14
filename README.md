@@ -56,6 +56,7 @@ Create a `.wscrc.json` to customize detectors. All tools (API, MCP, CLI) support
 ```json
 {
   "$schema": "https://wsc.theserverless.dev/schema.json",
+  "ignore": ["CHANGELOG.md", "docs/vendor/**"],
   "detectors": {
     "weaselWords": {
       "enabled": true,
@@ -69,6 +70,8 @@ Create a `.wscrc.json` to customize detectors. All tools (API, MCP, CLI) support
 ```
 
 Every field is optional. Missing fields use defaults. JSON Schema provides autocompletion in VS Code.
+
+`ignore` is an array of glob patterns relative to the working directory. The GitHub Action uses the repository root. The CLI adds these patterns to its built-in `**/node_modules/**` and `**/.git/**` skips, together with the Action `exclude` input and the CLI `--ignore` flag.
 
 ---
 
@@ -230,7 +233,7 @@ See the [`wsc-lint` README](cli/README.md) for full documentation.
 | `files` | `**/*.md` | Glob pattern for files to check |
 | `config` | — | Path to `.wscrc.json` config file |
 | `max-warnings` | unlimited | Max warnings before failing |
-| `only-changed` | `false` | Only check files changed in this PR |
+| `only-changed` | `false` | On a pull request, check changed files that match `files`. If none match, skip the check. Other events check `files`. |
 | `exclude` | — | Glob patterns to skip. Separate with a comma or a new line. Adds to config `ignore`. |
 
 ---
