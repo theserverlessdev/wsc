@@ -50,12 +50,14 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
       run: |
         # List every changed path, one per line (paths may contain spaces).
         # The check step intersects this list with the `files` glob. An empty
         # list is success: the check step skips and does not fall back to the
-        # full glob.
-        files=$(gh pr diff "$PR_NUMBER" --name-only)
+        # full glob. The files API (up to 3000 files) is used instead of
+        # `gh pr diff`, which fails once GitHub deems the diff too large.
+        files=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename')
         delim="wsc_$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
         printf 'files<<%s\n%s\n%s\n' "$delim" "$files" "$delim" >> "$GITHUB_OUTPUT"
 
