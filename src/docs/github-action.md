@@ -67,7 +67,7 @@ jobs:
 
 ### Exclude files
 
-Use `exclude` to skip files without a `.wscrc.json`. Patterns add to the config `ignore` list. They do not replace it.
+Use `exclude` to skip files without needing a `.wscrc.json`. Patterns are relative to the repository root. They add to the config `ignore` list and do not replace it.
 
 ```yaml
 - uses: theserverlessdev/wsc@v1
