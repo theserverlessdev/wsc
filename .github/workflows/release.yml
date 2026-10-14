@@ -2,12 +2,14 @@ name: Release
 
 # Conventional commits on master open a release pull request.
 # Merging that pull request runs this workflow again. release-please
-# tags the release, then the jobs below publish and move v1.
+# tags the release, then the jobs below publish and move the major tag.
 #
-# Tags created with GITHUB_TOKEN do not trigger other workflows, so the
-# wsc-mcp registry publish is invoked here via workflow_call.
+# Tags and pull requests created with GITHUB_TOKEN do not trigger other
+# workflows. The wsc-mcp registry publish is invoked here via workflow_call.
 # .github/workflows/publish-mcp.yml also keeps its wsc-mcp-v* tag trigger
-# for tags pushed with a user token.
+# for tags pushed with a user token. Remove that tag trigger if this
+# workflow ever switches from GITHUB_TOKEN to a GitHub App token, or the
+# registry publish runs twice.
 
 on:
   push:
@@ -27,13 +29,15 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     outputs:
-      # Path "." writes unprefixed outputs (release_created, tag_name, sha).
+      # Path "." writes unprefixed outputs (release_created, tag_name, sha, major).
       # Other manifest paths write "<path>--release_created".
       action_release_created: ${{ steps.release.outputs.release_created }}
       action_tag: ${{ steps.release.outputs.tag_name }}
       action_sha: ${{ steps.release.outputs.sha }}
       action_version: ${{ steps.release.outputs.version }}
+      action_major: ${{ steps.release.outputs.major }}
       mcp_release_created: ${{ steps.release.outputs['mcp-server--release_created'] }}
       mcp_tag: ${{ steps.release.outputs['mcp-server--tag_name'] }}
       mcp_version: ${{ steps.release.outputs['mcp-server--version'] }}
@@ -53,7 +57,7 @@ jobs:
         if: always()
         run: |
           echo "action release_created=${{ steps.release.outputs.release_created }}"
-          echo "action tag=${{ steps.release.outputs.tag_name }} sha=${{ steps.release.outputs.sha }}"
+          echo "action tag=${{ steps.release.outputs.tag_name }} sha=${{ steps.release.outputs.sha }} major=${{ steps.release.outputs.major }}"
           echo "mcp release_created=${{ steps.release.outputs['mcp-server--release_created'] }} tag=${{ steps.release.outputs['mcp-server--tag_name'] }}"
           echo "cli release_created=${{ steps.release.outputs['cli--release_created'] }} tag=${{ steps.release.outputs['cli--tag_name'] }}"
           echo "paths_released=${{ steps.release.outputs.paths_released }}"
@@ -66,9 +70,9 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -85,6 +89,9 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Run tests
+        run: npx svelte-kit sync && npm test
+
       - name: Install MCP server dependencies
         run: cd mcp-server && npm ci
 
@@ -92,7 +99,20 @@ jobs:
         run: cd mcp-server && npm run build
 
       - name: Smoke test MCP server
-        run: timeout 2 node mcp-server/dist/mcp-server/index.js < /dev/null 2>&1 || true
+        run: |
+          payload='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"wsc-release-smoke","version":"0.0.0"}}}'
+          set +e
+          printf '%s\n' "$payload" | timeout 5 node mcp-server/dist/mcp-server/index.js > /tmp/mcp-init.json
+          status=$?
+          set -e
+          # The stdio server stays open after initialize, so timeout exits 124.
+          if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
+            echo "MCP server exited ${status}" >&2
+            cat /tmp/mcp-init.json >&2
+            exit 1
+          fi
+          cat /tmp/mcp-init.json
+          grep -q 'writing-style-checker' /tmp/mcp-init.json
 
       - name: Publish wsc-mcp
         working-directory: mcp-server
@@ -106,9 +126,9 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -124,6 +144,9 @@ jobs:
 
       - name: Install root dependencies
         run: npm ci
+
+      - name: Run tests
+        run: npx svelte-kit sync && npm test
 
       - name: Install CLI dependencies
         run: cd cli && npm ci
@@ -150,31 +173,38 @@ jobs:
         working-directory: cli
         run: npm publish --provenance --access public
 
-  move-v1:
+  move-major:
     needs: release-please
     if: needs.release-please.outputs.action_release_created == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.release-please.outputs.action_sha }}
 
-      - name: Move annotated v1 tag to the Action release
+      - name: Move annotated major tag to the Action release
         env:
           SHA: ${{ needs.release-please.outputs.action_sha }}
           TAG: ${{ needs.release-please.outputs.action_tag }}
+          MAJOR: ${{ needs.release-please.outputs.action_major }}
         run: |
-          if [ -z "$SHA" ] || [ -z "$TAG" ]; then
-            echo "Action release is missing sha or tag" >&2
+          if [ -z "$SHA" ] || [ -z "$TAG" ] || [ -z "$MAJOR" ]; then
+            echo "Action release is missing sha, tag, or major" >&2
             exit 1
           fi
+          case "$MAJOR" in
+            *[!0-9]*)
+              echo "major must be a number" >&2
+              exit 1
+              ;;
+          esac
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a -f v1 "$SHA" -m "v1 tracks ${TAG}"
-          git push --force origin refs/tags/v1
-          echo "Moved v1 to ${SHA} (${TAG})"
+          git tag -a -f "v${MAJOR}" "$SHA" -m "v${MAJOR} tracks ${TAG}"
+          git push --force origin "refs/tags/v${MAJOR}"
+          echo "Moved v${MAJOR} to ${SHA} (${TAG})"
 
   publish-mcp-registry:
     needs: [release-please, publish-wsc-mcp]

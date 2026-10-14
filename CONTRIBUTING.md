@@ -88,7 +88,7 @@ All config types support `enabled` (boolean). Word-list detectors also support `
 
 ## Commits and releases
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) on `master`. `feat` opens a minor release, `fix` opens a patch release, and a `BREAKING CHANGE` footer opens a major release. Release Please turns those commits into a release pull request. See [docs/RELEASING.md](docs/RELEASING.md).
+Use [Conventional Commits](https://www.conventionalcommits.org/) on `master`. `feat` and `feature` open a minor release. `fix`, `perf`, and `revert` open a patch release. A `BREAKING CHANGE` footer, or `!` after the type, opens a major release. `docs`, `style`, `chore`, `refactor`, `test`, `build`, and `ci` do not open a release unless they include a breaking change. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Pull Request Process
 

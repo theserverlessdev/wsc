@@ -2,11 +2,12 @@ name: Keepalive
 
 # GitHub disables scheduled workflows in a public repository after 60 days
 # without repository activity (commits, issues, or pull requests). Workflow
-# runs do not count. This workflow:
-#   1. Re-enables Health Check (and itself) on every master push, on a
-#      weekly schedule, and on workflow_dispatch.
-#   2. Once a week, adds an empty commit on the keepalive branch so the
-#      repository still has activity during quiet periods.
+# runs do not count, and enabling a workflow through the API does not reset
+# that clock.
+#
+# gh workflow enable fails when the workflow is already enabled, and gh has
+# no repository context here because this job does not check out the repo.
+# The REST enable endpoint is safe to repeat.
 #
 # A disabled workflow does not run, so this cannot revive itself.
 # If Health Check is still disabled after this file merges, run:
@@ -22,7 +23,6 @@ on:
 
 permissions:
   actions: write
-  contents: write
 
 jobs:
   keep-enabled:
@@ -31,28 +31,7 @@ jobs:
       - name: Enable scheduled workflows
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh workflow enable "Health Check"
-          gh workflow enable "Keepalive"
-
-      - uses: actions/checkout@v4
-        if: github.event_name == 'schedule'
-        with:
-          fetch-depth: 1
-
-      - name: Record repository activity
-        if: github.event_name == 'schedule'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin keepalive || true
-          if git show-ref --verify --quiet refs/remotes/origin/keepalive; then
-            git checkout -B keepalive origin/keepalive
-            git commit --allow-empty -m "chore: keep scheduled workflows enabled"
-            git push origin keepalive
-          else
-            git checkout --orphan keepalive
-            git reset
-            git commit --allow-empty -m "chore: keep scheduled workflows enabled"
-            git push origin keepalive
-          fi
+          gh api -X PUT "repos/${GH_REPO}/actions/workflows/health.yml/enable"
+          gh api -X PUT "repos/${GH_REPO}/actions/workflows/keepalive.yml/enable"
