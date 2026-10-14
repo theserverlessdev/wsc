@@ -11,6 +11,7 @@ import type { WscConfig } from '../src/core/config.js';
 import { formatTextWithLineCol, formatJson, formatGitHub, formatSummary } from './formatter.js';
 import { isMarkdownFile } from '../src/core/markdown.js';
 import type { AnalysisResult } from '../src/core/analyzer.js';
+import { buildIgnoreList } from './ignore.js';
 
 export async function run(argv: string[] = process.argv): Promise<number> {
   const cli = cac('wsc');
@@ -21,6 +22,7 @@ export async function run(argv: string[] = process.argv): Promise<number> {
 
   cli.command('check [...files]', 'Check files for writing style issues')
     .option('--config <path>', 'Path to .wscrc.json config file')
+    .option('--ignore <patterns>', 'Glob patterns to skip (comma or newline separated). Stacks with config ignore')
     .option('--format <format>', 'Output format: text, json, github', { default: 'text' })
     .option('--no-color', 'Disable colored output')
     .option('--quiet', 'Only show summary')
@@ -79,13 +81,14 @@ export async function run(argv: string[] = process.argv): Promise<number> {
       }
 
       // Resolve `ignore` globs from the root config (--config or the nearest
-      // .wscrc.json at the cwd), on top of the always-ignored dependency dirs.
+      // .wscrc.json at the cwd), plus CLI `--ignore` / Action `exclude`.
+      // These stack (union). node_modules / .git are always skipped.
       let rootConfig = config;
       if (!rootConfig) {
         const rootConfigPath = await findConfigFile(process.cwd());
         if (rootConfigPath) rootConfig = await loadConfigFromFile(rootConfigPath);
       }
-      const ignore = ['**/node_modules/**', '**/.git/**', ...(rootConfig?.ignore ?? [])];
+      const ignore = buildIgnoreList(rootConfig?.ignore, options.ignore);
 
       // node_modules / .git are ignored by default so `**/*.md` behaves like
       // every other linter and never sweeps in dependency docs.
@@ -95,6 +98,18 @@ export async function run(argv: string[] = process.argv): Promise<number> {
         ignore,
       });
       if (resolvedFiles.length === 0) {
+        // Files matched but every one is ignored (e.g. an only-changed PR
+        // that touches just excluded files): nothing to check, not an error.
+        const unfiltered = await glob(files, { cwd: process.cwd(), ignore: buildIgnoreList() });
+        if (unfiltered.length > 0) {
+          process.stderr.write('All matched files are ignored; nothing to check.\n');
+          if (options.format === 'json') {
+            if (!options.quiet) process.stdout.write(formatJson([]) + '\n');
+          } else {
+            process.stdout.write(formatSummary(0, 0, summaryColor) + '\n');
+          }
+          return;
+        }
         process.stderr.write('Error: No files matched the given patterns.\n');
         resultCode = 2;
         return;

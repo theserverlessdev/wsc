@@ -20,6 +20,7 @@ Check your writing for style issues in CI. Detects weasel words, passive voice, 
 | `config` | Path to `.wscrc.json` config file | — |
 | `max-warnings` | Max warnings before failing | `-1` (unlimited) |
 | `only-changed` | Only check files changed in this PR | `false` |
+| `exclude` | Glob patterns to skip (comma or newline separated). Adds to config `ignore`. | — |
 
 ## Outputs
 
@@ -63,6 +64,20 @@ Check your writing for style issues in CI. Detects weasel words, passive voice, 
     files: 'docs/**/*.md'
     config: .wscrc.json
 ```
+
+### Exclude files
+
+```yaml
+- uses: theserverlessdev/wsc@v1
+  with:
+    files: 'content/*.md'
+    exclude: |
+      content/00.front-matter.md
+      content/07.contributions.md
+      content/90.back-matter.md
+```
+
+`exclude` adds to the `ignore` list in `.wscrc.json`. It does not replace that list.
 
 ## Links
 

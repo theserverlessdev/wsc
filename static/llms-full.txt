@@ -193,12 +193,15 @@ npx wsc-lint init
 ## GitHub Action
 
 ```yaml
-- uses: theserverlessdev/wsc/action@master
+- uses: theserverlessdev/wsc@v1
   with:
     files: "**/*.md"           # Glob pattern (default: **/*.md)
     config: ".wscrc.json"      # Path to config file (optional)
     max-warnings: "10"         # Max warnings before failing (default: unlimited)
     only-changed: "true"       # Only check PR-changed files (default: false)
+    exclude: |                 # Skip these globs (optional; stacks with config ignore)
+      CHANGELOG.md
+      vendor/**
 ```
 
 Output: `total-issues` — total number of issues found.

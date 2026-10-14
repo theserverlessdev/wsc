@@ -27,6 +27,7 @@ jobs:
 | `config` | _(none)_ | Path to `.wscrc.json` config file |
 | `max-warnings` | `-1` (unlimited) | Maximum warnings before failing |
 | `only-changed` | `false` | Only check files changed in this PR |
+| `exclude` | _(none)_ | Glob patterns to skip. Separate with a comma or a new line. Adds to config `ignore`. |
 
 ### Outputs
 
@@ -63,5 +64,21 @@ jobs:
     files: "docs/**/*.md"
     config: ".wscrc.json"
 ```
+
+### Exclude files
+
+Use `exclude` to skip files without needing a `.wscrc.json`. Patterns are relative to the repository root. They add to the config `ignore` list and do not replace it.
+
+```yaml
+- uses: theserverlessdev/wsc@v1
+  with:
+    files: "content/*.md"
+    exclude: |
+      content/00.front-matter.md
+      content/07.contributions.md
+      content/90.back-matter.md
+```
+
+A comma-separated list is valid: `exclude: "CHANGELOG.md,vendor/**"`.
 
 Issues appear as inline annotations on the pull request's "Files changed" tab using GitHub's `::warning` format.
