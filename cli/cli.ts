@@ -98,6 +98,18 @@ export async function run(argv: string[] = process.argv): Promise<number> {
         ignore,
       });
       if (resolvedFiles.length === 0) {
+        // Files matched but every one is ignored (e.g. an only-changed PR
+        // that touches just excluded files): nothing to check, not an error.
+        const unfiltered = await glob(files, { cwd: process.cwd(), ignore: buildIgnoreList() });
+        if (unfiltered.length > 0) {
+          process.stderr.write('All matched files are ignored; nothing to check.\n');
+          if (options.format === 'json') {
+            if (!options.quiet) process.stdout.write(formatJson([]) + '\n');
+          } else {
+            process.stdout.write(formatSummary(0, 0, summaryColor) + '\n');
+          }
+          return;
+        }
         process.stderr.write('Error: No files matched the given patterns.\n');
         resultCode = 2;
         return;

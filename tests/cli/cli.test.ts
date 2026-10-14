@@ -309,6 +309,21 @@ describe('run() — --ignore stacks with config ignore', () => {
     expect(files[0]).toContain('doc.md');
   });
 
+  it('exits 0 when every matched file is ignored (only-changed PR touching only excluded files)', async () => {
+    const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const code = await run(['node', 'wsc', 'check', 'SKIP.md', '--ignore', 'SKIP.md', '--format', 'github']);
+    err.mockRestore();
+    expect(code).toBe(0);
+    expect(captured).toContain('No issues found in 0 files.');
+  });
+
+  it('still exits 2 when the patterns match no files at all', async () => {
+    const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const code = await run(['node', 'wsc', 'check', 'MISSING.md', '--ignore', 'SKIP.md']);
+    err.mockRestore();
+    expect(code).toBe(2);
+  });
+
   it('still applies --ignore when files are explicit paths (only-changed)', async () => {
     await run(['node', 'wsc', 'check', 'doc.md', 'SKIP.md', '--ignore', 'SKIP.md', '--format', 'json']);
     const files = JSON.parse(captured).map((r: { file: string }) => r.file);
