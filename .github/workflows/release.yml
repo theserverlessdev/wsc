@@ -1,0 +1,185 @@
+name: Release
+
+# Conventional commits on master open a release pull request.
+# Merging that pull request runs this workflow again. release-please
+# tags the release, then the jobs below publish and move v1.
+#
+# Tags created with GITHUB_TOKEN do not trigger other workflows, so the
+# wsc-mcp registry publish is invoked here via workflow_call.
+# .github/workflows/publish-mcp.yml also keeps its wsc-mcp-v* tag trigger
+# for tags pushed with a user token.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      # Path "." writes unprefixed outputs (release_created, tag_name, sha).
+      # Other manifest paths write "<path>--release_created".
+      action_release_created: ${{ steps.release.outputs.release_created }}
+      action_tag: ${{ steps.release.outputs.tag_name }}
+      action_sha: ${{ steps.release.outputs.sha }}
+      action_version: ${{ steps.release.outputs.version }}
+      mcp_release_created: ${{ steps.release.outputs['mcp-server--release_created'] }}
+      mcp_tag: ${{ steps.release.outputs['mcp-server--tag_name'] }}
+      mcp_version: ${{ steps.release.outputs['mcp-server--version'] }}
+      cli_release_created: ${{ steps.release.outputs['cli--release_created'] }}
+      cli_tag: ${{ steps.release.outputs['cli--tag_name'] }}
+      cli_version: ${{ steps.release.outputs['cli--version'] }}
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Show release outputs
+        if: always()
+        run: |
+          echo "action release_created=${{ steps.release.outputs.release_created }}"
+          echo "action tag=${{ steps.release.outputs.tag_name }} sha=${{ steps.release.outputs.sha }}"
+          echo "mcp release_created=${{ steps.release.outputs['mcp-server--release_created'] }} tag=${{ steps.release.outputs['mcp-server--tag_name'] }}"
+          echo "cli release_created=${{ steps.release.outputs['cli--release_created'] }} tag=${{ steps.release.outputs['cli--tag_name'] }}"
+          echo "paths_released=${{ steps.release.outputs.paths_released }}"
+
+  publish-wsc-mcp:
+    needs: release-please
+    if: needs.release-please.outputs.mcp_release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm with trusted publishing support
+        run: |
+          # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.
+          # Do not set NPM_TOKEN or NODE_AUTH_TOKEN.
+          npm install -g npm@11
+          echo "node $(node --version) npm $(npm --version)"
+          node -e 'const n=process.versions.node.split(".").map(Number); if (n[0] < 22 || (n[0] === 22 && n[1] < 14)) { console.error("Node " + process.versions.node + " is below 22.14.0"); process.exit(1); }'
+          npm --version | awk -F. '{ if ($1 < 11 || ($1 == 11 && $2 < 5) || ($1 == 11 && $2 == 5 && $3 < 1)) { print "npm too old"; exit 1 } }'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install MCP server dependencies
+        run: cd mcp-server && npm ci
+
+      - name: Build MCP server
+        run: cd mcp-server && npm run build
+
+      - name: Smoke test MCP server
+        run: timeout 2 node mcp-server/dist/mcp-server/index.js < /dev/null 2>&1 || true
+
+      - name: Publish wsc-mcp
+        working-directory: mcp-server
+        run: npm publish --provenance --access public
+
+  publish-wsc-lint:
+    needs: release-please
+    if: needs.release-please.outputs.cli_release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm with trusted publishing support
+        run: |
+          # Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.
+          # Do not set NPM_TOKEN or NODE_AUTH_TOKEN.
+          npm install -g npm@11
+          echo "node $(node --version) npm $(npm --version)"
+          node -e 'const n=process.versions.node.split(".").map(Number); if (n[0] < 22 || (n[0] === 22 && n[1] < 14)) { console.error("Node " + process.versions.node + " is below 22.14.0"); process.exit(1); }'
+          npm --version | awk -F. '{ if ($1 < 11 || ($1 == 11 && $2 < 5) || ($1 == 11 && $2 == 5 && $3 < 1)) { print "npm too old"; exit 1 } }'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install CLI dependencies
+        run: cd cli && npm ci
+
+      - name: Build CLI
+        run: cd cli && npm run build
+
+      - name: Smoke test - stdin check
+        run: echo "The code was written very quickly." | node cli/dist/cli/index.js check --stdin
+
+      - name: Smoke test - clean text
+        run: echo "The team wrote good code." | node cli/dist/cli/index.js check --stdin --quiet
+
+      - name: Smoke test - list detectors
+        run: node cli/dist/cli/index.js list
+
+      - name: Smoke test - list weasel words
+        run: node cli/dist/cli/index.js list weaselWords | head -5
+
+      - name: Smoke test - init
+        run: cd /tmp && node "${GITHUB_WORKSPACE}/cli/dist/cli/index.js" init && test -f .wscrc.json && rm .wscrc.json
+
+      - name: Publish wsc-lint
+        working-directory: cli
+        run: npm publish --provenance --access public
+
+  move-v1:
+    needs: release-please
+    if: needs.release-please.outputs.action_release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.action_sha }}
+
+      - name: Move annotated v1 tag to the Action release
+        env:
+          SHA: ${{ needs.release-please.outputs.action_sha }}
+          TAG: ${{ needs.release-please.outputs.action_tag }}
+        run: |
+          if [ -z "$SHA" ] || [ -z "$TAG" ]; then
+            echo "Action release is missing sha or tag" >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a -f v1 "$SHA" -m "v1 tracks ${TAG}"
+          git push --force origin refs/tags/v1
+          echo "Moved v1 to ${SHA} (${TAG})"
+
+  publish-mcp-registry:
+    needs: [release-please, publish-wsc-mcp]
+    if: needs.release-please.outputs.mcp_release_created == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/publish-mcp.yml

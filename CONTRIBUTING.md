@@ -86,6 +86,10 @@ All config types support `enabled` (boolean). Word-list detectors also support `
 - **Bug fixes and UI improvements**: PRs welcome.
 - **Documentation**: Update `src/docs/*.md` files (rendered on the website), README, and CONTRIBUTING.
 
+## Commits and releases
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) on `master`. `feat` opens a minor release, `fix` opens a patch release, and a `BREAKING CHANGE` footer opens a major release. Release Please turns those commits into a release pull request. See [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Pull Request Process
 
 1. Fork the repo and create a feature branch from `master`

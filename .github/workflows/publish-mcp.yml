@@ -11,6 +11,7 @@ name: Publish to MCP Registry
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     tags: ["wsc-mcp-v*"]
 
@@ -33,6 +34,21 @@ jobs:
 
       - name: Authenticate to MCP Registry (OIDC)
         run: ./mcp-publisher login github-oidc
+
+      - name: Wait until npm has this wsc-mcp version
+        run: |
+          version=$(node -p "require('./server.json').packages[0].version")
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            published=$(npm view "wsc-mcp@${version}" version 2>/dev/null || true)
+            if [ "$published" = "$version" ]; then
+              echo "npm has wsc-mcp@${version}"
+              exit 0
+            fi
+            echo "waiting for wsc-mcp@${version} (attempt ${attempt})"
+            sleep 15
+          done
+          echo "wsc-mcp@${version} is not on npm yet" >&2
+          exit 1
 
       - name: Publish server.json
         run: ./mcp-publisher publish
