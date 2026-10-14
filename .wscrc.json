@@ -5,6 +5,8 @@
     "CONTRIBUTING.md",
     "TESTING.md",
     "RELEASE-AND-DEPLOYMENT.md",
+    "CHANGELOG.md",
+    "**/CHANGELOG.md",
     "docs/superpowers/**",
     "docs/distribution/**"
   ],

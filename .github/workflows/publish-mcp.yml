@@ -8,9 +8,17 @@ name: Publish to MCP Registry
 #
 # Prerequisite: the wsc-mcp version referenced in server.json must already
 # be published to npm (the registry verifies mcpName inside that tarball).
+#
+# The wsc-mcp-v* tag trigger covers tags pushed with a user token.
+# Release Please uses GITHUB_TOKEN, and those tags do not start this
+# workflow, so release.yml calls it with workflow_call.
+# If release-please later uses a GitHub App token, remove the tag trigger.
+# An App token tag push would start this workflow, and the workflow_call
+# from release.yml would publish the same version again.
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     tags: ["wsc-mcp-v*"]
 
@@ -25,11 +33,36 @@ jobs:
       run:
         working-directory: mcp-server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Wait until npm has this wsc-mcp version
+        run: |
+          version=$(node -p "require('./server.json').packages[0].version")
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            published=$(npm view "wsc-mcp@${version}" version 2>/dev/null || true)
+            if [ "$published" = "$version" ]; then
+              echo "npm has wsc-mcp@${version}"
+              exit 0
+            fi
+            echo "waiting for wsc-mcp@${version} (attempt ${attempt})"
+            sleep 15
+          done
+          echo "wsc-mcp@${version} is not on npm yet" >&2
+          exit 1
 
       - name: Install mcp-publisher
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          version=v1.8.1
+          asset=mcp-publisher_linux_amd64.tar.gz
+          expected=a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+          base="https://github.com/modelcontextprotocol/registry/releases/download/${version}"
+          workdir=$(mktemp -d)
+          curl -fsSL -o "${workdir}/${asset}" "${base}/${asset}"
+          curl -fsSL -o "${workdir}/checksums.txt" "${base}/registry_1.8.1_checksums.txt"
+          grep -Fxq "${expected}  ${asset}" "${workdir}/checksums.txt"
+          echo "${expected}  ${asset}" | (cd "$workdir" && sha256sum -c -)
+          tar -xzf "${workdir}/${asset}" -C "$workdir" mcp-publisher
+          install -m 0755 "${workdir}/mcp-publisher" ./mcp-publisher
 
       - name: Authenticate to MCP Registry (OIDC)
         run: ./mcp-publisher login github-oidc

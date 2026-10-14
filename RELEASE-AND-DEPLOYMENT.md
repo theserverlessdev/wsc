@@ -1,6 +1,8 @@
 # Release and Deployment
 
-This document covers how to deploy the Writing Style Checker to Cloudflare Workers and publish the standalone MCP server to npm.
+This document covers how to deploy the Writing Style Checker to Cloudflare Workers and how package publishes used to work by hand.
+
+Action tags, `wsc-mcp`, and `wsc-lint` now release through [Release Please](docs/RELEASING.md). Cloudflare Workers Builds still deploys the site. Do not bump those package versions with `npm version` or push `v*`, `wsc-mcp-v*`, or `wsc-lint-v*` tags yourself while that workflow is active. The manual commands below describe the old path.
 
 ---
 
@@ -331,6 +333,8 @@ Users add this to their workflow:
 
 ### Releasing Updates
 
+Release Please now tags `vX.Y.Z` and the Release workflow moves `v1`. See [docs/RELEASING.md](docs/RELEASING.md). The commands below are the manual equivalent:
+
 Users reference the action by the moving major tag `@v1`. Any change to `action.yml`, `cli/`, or `src/core/` that affects the action's behavior ships by cutting a new release tag and moving `v1`:
 
 ```bash
@@ -424,6 +428,8 @@ npm publish
 ---
 
 ## Release Workflow Summary
+
+The automated path lives in [docs/RELEASING.md](docs/RELEASING.md). The script below is the old manual sequence:
 
 A typical release that includes the web app and npm packages:
 
