@@ -1,11 +1,42 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { globSync } from 'tinyglobby';
+import { afterAll, describe, expect, it } from 'vitest';
 import { analyzeText } from '../../src/core/analyzer';
 import { loadConfigFromFile } from '../../src/core/config-node';
 import { selectActionFiles } from '../../scripts/select-action-files.mjs';
 
 describe('selectActionFiles', () => {
+  // A checkout with docs, code, and the dirs the CLI always skips.
+  const repo = mkdtempSync(join(tmpdir(), 'wsc-select-'));
+  for (const file of [
+    'README.md',
+    'CHANGELOG.md',
+    'notes.txt',
+    'guide.rst',
+    'src/main.ts',
+    'docs/guide.md',
+    'docs/sub/deep.md',
+    'docs/(draft).md',
+    'docs/my notes.md',
+    '-dash.md',
+    '.github/pr.md',
+    'node_modules/pkg/README.md',
+  ]) {
+    mkdirSync(dirname(join(repo, file)), { recursive: true });
+    writeFileSync(join(repo, file), 'text\n');
+  }
+  afterAll(() => rmSync(repo, { recursive: true, force: true }));
+
+  function pr(changed: string[], files: string) {
+    return selectActionFiles(
+      { onlyChanged: 'true', eventName: 'pull_request', changed: changed.join('\n'), files },
+      repo,
+    );
+  }
+
   it('keeps the files glob when only-changed is off', () => {
     expect(
       selectActionFiles({
@@ -14,7 +45,7 @@ describe('selectActionFiles', () => {
         changed: '',
         files: '**/*.md',
       }),
-    ).toEqual({ skip: false, files: '**/*.md' });
+    ).toEqual({ skip: false, files: ['**/*.md'] });
   });
 
   it('keeps the files glob on non-PR events when only-changed is set', () => {
@@ -23,64 +54,81 @@ describe('selectActionFiles', () => {
         onlyChanged: 'true',
         eventName: 'push',
         changed: '',
-        files: 'docs/**/*.md',
+        files: 'docs/**/*.md README.md',
       }),
-    ).toEqual({ skip: false, files: 'docs/**/*.md' });
+    ).toEqual({ skip: false, files: ['docs/**/*.md', 'README.md'] });
   });
 
   it('skips a pull request that changes no files', () => {
-    expect(
-      selectActionFiles({
-        onlyChanged: 'true',
-        eventName: 'pull_request',
-        changed: '   ',
-        files: '**/*.md',
-      }),
-    ).toEqual({ skip: true, files: '' });
+    expect(pr([], '**/*.md')).toEqual({ skip: true, files: [] });
   });
 
   it('skips a pull request whose changes miss the files glob', () => {
-    expect(
-      selectActionFiles({
-        onlyChanged: 'true',
-        eventName: 'pull_request',
-        changed: 'src/main.ts notes.txt',
-        files: '**/*.md',
-      }),
-    ).toEqual({ skip: true, files: '' });
+    expect(pr(['src/main.ts', 'notes.txt'], '**/*.md')).toEqual({ skip: true, files: [] });
   });
 
   it('intersects changed paths with the files glob', () => {
-    expect(
-      selectActionFiles({
-        onlyChanged: 'true',
-        eventName: 'pull_request',
-        changed: 'README.md src/main.ts docs/guide.md notes.txt',
-        files: 'docs/**/*.md',
-      }),
-    ).toEqual({ skip: false, files: 'docs/guide.md' });
+    expect(pr(['README.md', 'src/main.ts', 'docs/guide.md', 'notes.txt'], 'docs/**/*.md')).toEqual({
+      skip: false,
+      files: ['docs/guide.md'],
+    });
+  });
+
+  it('matches root-level files with the default glob', () => {
+    expect(pr(['README.md', 'src/main.ts'], '**/*.md')).toEqual({ skip: false, files: ['README.md'] });
   });
 
   it('keeps txt and rst when the files glob includes them', () => {
-    expect(
-      selectActionFiles({
-        onlyChanged: 'true',
-        eventName: 'pull_request',
-        changed: 'notes.txt guide.rst README.md src/a.ts',
-        files: '**/*.{md,txt,rst}',
-      }),
-    ).toEqual({ skip: false, files: 'notes.txt guide.rst README.md' });
+    expect(pr(['notes.txt', 'guide.rst', 'README.md', 'src/main.ts'], '**/*.{md,txt,rst}')).toEqual({
+      skip: false,
+      files: ['notes.txt', 'guide.rst', 'README.md'],
+    });
   });
 
   it('matches several space-separated file globs', () => {
-    expect(
-      selectActionFiles({
-        onlyChanged: 'true',
-        eventName: 'pull_request',
-        changed: 'README.md docs/guide.md src/a.ts',
-        files: 'docs/**/*.md README.md',
-      }),
-    ).toEqual({ skip: false, files: 'README.md docs/guide.md' });
+    expect(pr(['README.md', 'docs/guide.md', 'src/main.ts'], 'docs/**/*.md README.md')).toEqual({
+      skip: false,
+      files: ['README.md', 'docs/guide.md'],
+    });
+  });
+
+  it('drops deleted files and skips when only deleted docs changed', () => {
+    expect(pr(['docs/removed.md', 'docs/guide.md'], '**/*.md')).toEqual({
+      skip: false,
+      files: ['docs/guide.md'],
+    });
+    expect(pr(['docs/removed.md'], '**/*.md')).toEqual({ skip: true, files: [] });
+  });
+
+  it('globs files like the CLI: directories, ./ prefixes, and negation', () => {
+    expect(pr(['docs/sub/deep.md', 'README.md'], 'docs')).toEqual({
+      skip: false,
+      files: ['docs/sub/deep.md'],
+    });
+    expect(pr(['docs/guide.md'], './docs/**/*.md')).toEqual({ skip: false, files: ['docs/guide.md'] });
+    expect(pr(['CHANGELOG.md', 'README.md'], '**/*.md !CHANGELOG.md')).toEqual({
+      skip: false,
+      files: ['README.md'],
+    });
+  });
+
+  it('skips dotfiles and node_modules like the CLI', () => {
+    expect(pr(['.github/pr.md', 'node_modules/pkg/README.md'], '**/*.md')).toEqual({
+      skip: true,
+      files: [],
+    });
+  });
+
+  it('keeps paths with spaces whole and escapes glob characters', () => {
+    expect(pr(['docs/my notes.md', 'docs/(draft).md', '-dash.md'], '**/*.md')).toEqual({
+      skip: false,
+      files: ['docs/my notes.md', 'docs/\\(draft\\).md', './-dash.md'],
+    });
+  });
+
+  it('emits patterns the CLI globber resolves back to the same files', () => {
+    const { files } = pr(['docs/my notes.md', 'docs/(draft).md', '-dash.md'], '**/*.md');
+    expect(globSync(files, { cwd: repo }).sort()).toEqual(['-dash.md', 'docs/(draft).md', 'docs/my notes.md']);
   });
 });
 
@@ -112,6 +160,26 @@ describe('select-action-files script', () => {
     });
     expect(res.status).toBe(0);
     expect(res.stdout).toBe('**/*.md\n');
+  });
+
+  it('prints one pattern per line', () => {
+    const push = run({
+      WSC_ONLY_CHANGED: 'false',
+      WSC_EVENT_NAME: 'push',
+      WSC_CHANGED: '',
+      WSC_FILES: 'docs/**/*.md README.md',
+    });
+    expect(push.status).toBe(0);
+    expect(push.stdout).toBe('docs/**/*.md\nREADME.md\n');
+
+    const pull = run({
+      WSC_ONLY_CHANGED: 'true',
+      WSC_EVENT_NAME: 'pull_request',
+      WSC_CHANGED: 'README.md\nsrc/core/index.ts\nsrc/docs/config.md\nsrc/docs/deleted.md',
+      WSC_FILES: '**/*.md',
+    });
+    expect(pull.status).toBe(0);
+    expect(pull.stdout).toBe('README.md\nsrc/docs/config.md\n');
   });
 
   it('prints nothing and exits 0 when the files glob is empty and only-changed is off', () => {

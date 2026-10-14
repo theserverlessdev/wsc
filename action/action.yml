@@ -50,11 +50,13 @@ runs:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        # List every changed path. The check step intersects this list with
-        # the `files` glob. An empty list is success: the check step skips
-        # and does not fall back to the full glob.
-        files=$(gh pr diff "$PR_NUMBER" --name-only | tr '\n' ' ')
-        echo "files=$files" >> "$GITHUB_OUTPUT"
+        # List every changed path, one per line (paths may contain spaces).
+        # The check step intersects this list with the `files` glob. An empty
+        # list is success: the check step skips and does not fall back to the
+        # full glob.
+        files=$(gh pr diff "$PR_NUMBER" --name-only)
+        delim="wsc_$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+        printf 'files<<%s\n%s\n%s\n' "$delim" "$files" "$delim" >> "$GITHUB_OUTPUT"
 
     - name: Run wsc check
       id: check
@@ -76,7 +78,7 @@ runs:
         # non-zero status is a real failure. `||` keeps `set -e` from exiting
         # before we can handle the skip.
         code=0
-        check_files=$(node --no-warnings "$GITHUB_ACTION_PATH/../scripts/select-action-files.mjs") || code=$?
+        selected=$(node --no-warnings "$GITHUB_ACTION_PATH/../scripts/select-action-files.mjs") || code=$?
         if [ "$code" -eq 10 ]; then
           echo "No files matching the files pattern changed in this pull request. Skipping check."
           echo "total-issues=0" >> "$GITHUB_OUTPUT"
@@ -86,7 +88,13 @@ runs:
           echo "Could not decide which files to check." >&2
           exit "$code"
         fi
-        args=(check $check_files --format github)
+        # One pattern per line. Read line by line so a path with spaces stays
+        # one argv.
+        check_files=()
+        while IFS= read -r line; do
+          if [ -n "$line" ]; then check_files+=("$line"); fi
+        done <<< "$selected"
+        args=(check "${check_files[@]}" --format github)
         if [ -n "$WSC_CONFIG" ]; then args+=(--config "$WSC_CONFIG"); fi
         if [ "$WSC_MAX" != "-1" ]; then args+=(--max-warnings "$WSC_MAX"); fi
         # Quoted so a multiline exclude list is one argv; the CLI splits it.
