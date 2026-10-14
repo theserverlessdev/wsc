@@ -27,6 +27,8 @@ npx wsc-lint init
 
 The CLI skips `**/node_modules/**` and `**/.git/**` on every file check. It adds `ignore` patterns to that list, along with the Action `exclude` input and the CLI `--ignore` flag.
 
+The CLI reads `ignore` from the `--config` file. Without `--config`, it reads the first `.wscrc.json` it finds from the working directory upward. An `ignore` list in a subdirectory `.wscrc.json` has no effect. The MCP server and HTTP API do not read `ignore`.
+
 ```json
 {
   "ignore": ["CHANGELOG.md", "docs/vendor/**"]
