@@ -29,6 +29,10 @@ describe('parseIgnorePatterns', () => {
     expect(parseIgnorePatterns('A.md\r\nB.md,C.md')).toEqual(['A.md', 'B.md', 'C.md']);
   });
 
+  it('keeps commas inside brace globs', () => {
+    expect(parseIgnorePatterns('docs/{draft,old}/**,CHANGELOG.md')).toEqual(['docs/{draft,old}/**', 'CHANGELOG.md']);
+  });
+
   it('dedupes repeated patterns across array chunks', () => {
     expect(parseIgnorePatterns(['A.md', 'A.md,B.md'])).toEqual(['A.md', 'B.md']);
   });
