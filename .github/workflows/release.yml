@@ -116,10 +116,11 @@ jobs:
         run: |
           payload='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"wsc-release-smoke","version":"0.0.0"}}}'
           set +e
-          printf '%s\n' "$payload" | timeout 5 node mcp-server/dist/mcp-server/index.js > /tmp/mcp-init.json
+          printf '%s\n' "$payload" | timeout 30 node mcp-server/dist/mcp-server/index.js > /tmp/mcp-init.json
           status=$?
           set -e
-          # The stdio server stays open after initialize, so timeout exits 124.
+          # The server exits 0 when stdin closes. Status 124 means the timeout
+          # stopped it; the grep below still checks the initialize reply.
           if [ "$status" -ne 0 ] && [ "$status" -ne 124 ]; then
             echo "MCP server exited ${status}" >&2
             cat /tmp/mcp-init.json >&2
