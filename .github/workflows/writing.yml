@@ -5,6 +5,10 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # Release Please opens its pull request with GITHUB_TOKEN, which does
+  # not start pull_request workflows. Close and reopen still runs this
+  # check. workflow_dispatch runs it on a selected branch.
+  workflow_dispatch:
 
 # Dogfoods the repo's own GitHub Action (./action) against its Markdown docs.
 # This doubles as an end-to-end test of the action on every push/PR.

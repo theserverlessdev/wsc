@@ -320,7 +320,7 @@ npx wrangler deploy
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and pull request guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and pull request guidelines. Maintainers ship the Action, `wsc-mcp`, and `wsc-lint` from conventional commits. See [docs/RELEASING.md](docs/RELEASING.md).
 
 For substantial changes, please [open an issue](https://github.com/theserverlessdev/wsc/issues) first.
 

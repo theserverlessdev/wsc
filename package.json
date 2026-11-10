@@ -2,6 +2,10 @@
   "name": "writing-detector",
   "version": "1.0.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theserverlessdev/wsc.git"
+  },
   "author": "Ankur Singh <hello@anks.in>",
   "scripts": {
     "dev": "vite dev",

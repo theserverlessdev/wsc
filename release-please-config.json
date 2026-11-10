@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "component": "action",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "exclude-paths": [
+        "mcp-server",
+        "cli",
+        "docs",
+        ".github",
+        "src/lib",
+        "src/routes",
+        "src/docs",
+        "src/styles",
+        "src/mcp",
+        "static",
+        "tests"
+      ],
+      "pull-request-footer": "Merging this pull request tags the release. The Release workflow then publishes npm packages, calls the MCP registry workflow for wsc-mcp, and moves the v<major> tag when the Action releases."
+    },
+    "mcp-server": {
+      "release-type": "node",
+      "package-name": "wsc-mcp",
+      "component": "wsc-mcp",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
+      "tag-separator": "-",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.packages[0].version"
+        },
+        {
+          "type": "generic",
+          "path": "/src/mcp/handler.ts"
+        }
+      ]
+    },
+    "cli": {
+      "release-type": "node",
+      "package-name": "wsc-lint",
+      "component": "wsc-lint",
+      "include-component-in-tag": true,
+      "include-v-in-tag": true,
+      "tag-separator": "-"
+    }
+  }
+}
