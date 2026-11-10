@@ -28,7 +28,8 @@ A commit counts for a component when it touches that component's path.
 
 - A commit that only touches `mcp-server/` releases `wsc-mcp`.
 - A commit that only touches `cli/` releases `wsc-lint`.
-- The Action component ignores a commit when every file in it sits under an excluded directory: `mcp-server`, `cli`, `docs`, `.github`, `src/lib`, `src/routes`, `src/docs`, `src/styles`, `src/mcp`, `static`, or `tests`. A site-only commit, a docs-only commit, or a workflow-only commit does not cut an Action release.
+- The Action component ignores a commit when every file in it sits under an excluded path. The excluded directories are `mcp-server`, `cli`, `docs`, `.github`, `src/lib`, `src/routes`, `src/docs`, `src/styles`, `src/mcp`, `static`, and `tests`. The excluded site-only files are `svelte.config.js`, `vite.config.ts`, `vitest.config.ts`, `wrangler.toml`, `_headers`, `glama.json`, `src/app.html`, and `src/app.d.ts`. A site-only commit, a docs-only commit, or a workflow-only commit does not cut an Action release.
+- The Action builds `cli/`, and that build compiles `src/core/`. The excluded root files are not part of that build. The root `package.json` and `package-lock.json` stay in scope, so a dependency fix there still releases the Action.
 - A commit that touches `action.yml`, `action/`, `src/core/`, or any other path outside that list releases the Action.
 
 `src/core/` ships inside both npm packages (their TypeScript builds compile it) and inside the Action (the Action builds `wsc-lint` from the tagged commit). Release Please attaches a commit to `wsc-mcp` or `wsc-lint` when the commit also touches that package directory. To ship a core fix in a package, include a file under `mcp-server/` or `cli/` in the same commit. A core-only commit releases the Action and moves the major tag after merge. While the Action major is 1, that tag is `v1`.
@@ -67,6 +68,8 @@ Push the commit to `master`. The Release workflow runs Release Please. When a co
 
 Review that pull request. Merge it when the notes look right. Skip hand tagging and hand publishing.
 
+The `master` ruleset requires a green `signoff` status from the `gh-signoff` extension. The release pull request needs it too. Each push to `master` updates the release pull request head, so run `gh signoff` on its final head, right before you merge it.
+
 ## What happens on merge
 
 The merge pushes `master` and the workflow runs again.
@@ -78,6 +81,10 @@ The merge pushes `master` and the workflow runs again.
 5. After the `wsc-mcp` npm publish succeeds, the workflow calls Publish to MCP Registry. That job waits until npm lists the version, then logs in with OIDC.
 
 Publish jobs use npm trusted publishing (OIDC). They request `id-token: write`, install npm `>= 11.5.1` on Node 22, and set the npm registry URL. They do not use `NPM_TOKEN`.
+
+### Re-run a failed publish
+
+If a publish job fails, open the Release run and use **Re-run failed jobs**. Do not use **Re-run all jobs**. That choice runs Release Please again. Release Please finds that the release already exists, so `release_created` comes back empty. The publish jobs then skip with no error, and no package reaches npm.
 
 ### Major tag and the registry tag
 
@@ -104,12 +111,12 @@ Provenance needs `repository.url` on each published package to point at this rep
 
 ## Health Check
 
-GitHub turns off a public scheduled workflow after 60 days without a commit, an issue, or a pull request. Workflow runs do not count. [Keepalive](../.github/workflows/keepalive.yml) enables Health Check and itself through the Actions API. It runs on each push to `master`, once a week, and on `workflow_dispatch`. Repeating the enable call is safe when the workflow is already on. The call does not count as repository activity, so it leaves the 60-day clock alone.
+GitHub turns off a public scheduled workflow after 60 days without a commit, an issue, or a pull request. Workflow runs do not count. [Keepalive](../.github/workflows/keepalive.yml) enables Health Check through the Actions API. It runs on each push to `master` and on `workflow_dispatch`. Repeating the enable call is safe when the workflow is already on.
 
-A disabled workflow does not run, so Keepalive cannot revive itself. If Health Check is still off after this lands, enable it once. This command does not delete or rewrite anything:
+Keepalive has no schedule, so GitHub never turns Keepalive off. It does not stop GitHub from turning off Health Check. The enable call does not count as repository activity, so it leaves the 60-day clock alone. After 60 quiet days Health Check stops. The next push to `master` turns it on again.
+
+To turn Health Check on without a push, run this command. It does not delete or rewrite anything:
 
 ```bash
 gh workflow enable "Health Check"
 ```
-
-If Keepalive is off as well, run `gh workflow enable "Keepalive"` once. Later pushes to `master` then enable Health Check again.

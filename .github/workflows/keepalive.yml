@@ -5,18 +5,15 @@ name: Keepalive
 # runs do not count, and enabling a workflow through the API does not reset
 # that clock.
 #
+# This workflow has no schedule, so GitHub never disables it. Each push to
+# master enables Health Check again. This restores Health Check after GitHub
+# disables it. It does not prevent the disable.
+#
 # gh workflow enable fails when the workflow is already enabled, and gh has
 # no repository context here because this job does not check out the repo.
 # The REST enable endpoint is safe to repeat.
-#
-# A disabled workflow does not run, so this cannot revive itself.
-# If Health Check is still disabled after this file merges, run:
-#   gh workflow enable "Health Check"
 
 on:
-  schedule:
-    # Monday 08:17 UTC, off the top of the hour.
-    - cron: "17 8 * * 1"
   workflow_dispatch:
   push:
     branches: [master]
@@ -28,10 +25,8 @@ jobs:
   keep-enabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Enable scheduled workflows
+      - name: Enable Health Check
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          gh api -X PUT "repos/${GH_REPO}/actions/workflows/health.yml/enable"
-          gh api -X PUT "repos/${GH_REPO}/actions/workflows/keepalive.yml/enable"
+        run: gh api -X PUT "repos/${GH_REPO}/actions/workflows/health.yml/enable"

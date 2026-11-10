@@ -18,7 +18,15 @@
         "src/styles",
         "src/mcp",
         "static",
-        "tests"
+        "tests",
+        "svelte.config.js",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "wrangler.toml",
+        "_headers",
+        "glama.json",
+        "src/app.html",
+        "src/app.d.ts"
       ],
       "pull-request-footer": "Merging this pull request tags the release. The Release workflow then publishes npm packages, calls the MCP registry workflow for wsc-mcp, and moves the v<major> tag when the Action releases."
     },

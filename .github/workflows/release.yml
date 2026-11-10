@@ -55,12 +55,22 @@ jobs:
 
       - name: Show release outputs
         if: always()
+        env:
+          ACTION_RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          ACTION_TAG: ${{ steps.release.outputs.tag_name }}
+          ACTION_SHA: ${{ steps.release.outputs.sha }}
+          ACTION_MAJOR: ${{ steps.release.outputs.major }}
+          MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp-server--release_created'] }}
+          MCP_TAG: ${{ steps.release.outputs['mcp-server--tag_name'] }}
+          CLI_RELEASE_CREATED: ${{ steps.release.outputs['cli--release_created'] }}
+          CLI_TAG: ${{ steps.release.outputs['cli--tag_name'] }}
+          PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
         run: |
-          echo "action release_created=${{ steps.release.outputs.release_created }}"
-          echo "action tag=${{ steps.release.outputs.tag_name }} sha=${{ steps.release.outputs.sha }} major=${{ steps.release.outputs.major }}"
-          echo "mcp release_created=${{ steps.release.outputs['mcp-server--release_created'] }} tag=${{ steps.release.outputs['mcp-server--tag_name'] }}"
-          echo "cli release_created=${{ steps.release.outputs['cli--release_created'] }} tag=${{ steps.release.outputs['cli--tag_name'] }}"
-          echo "paths_released=${{ steps.release.outputs.paths_released }}"
+          printf 'action release_created=%s\n' "$ACTION_RELEASE_CREATED"
+          printf 'action tag=%s sha=%s major=%s\n' "$ACTION_TAG" "$ACTION_SHA" "$ACTION_MAJOR"
+          printf 'mcp release_created=%s tag=%s\n' "$MCP_RELEASE_CREATED" "$MCP_TAG"
+          printf 'cli release_created=%s tag=%s\n' "$CLI_RELEASE_CREATED" "$CLI_TAG"
+          printf 'paths_released=%s\n' "$PATHS_RELEASED"
 
   publish-wsc-mcp:
     needs: release-please
@@ -69,6 +79,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    defaults:
+      run:
+        # Explicit bash adds pipefail. The implicit default is bash -e only.
+        shell: bash
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -125,6 +139,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    defaults:
+      run:
+        # Explicit bash adds pipefail. The implicit default is bash -e only.
+        shell: bash
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -154,17 +172,32 @@ jobs:
       - name: Build CLI
         run: cd cli && npm run build
 
-      - name: Smoke test - stdin check
-        run: echo "The code was written very quickly." | node cli/dist/cli/index.js check --stdin
+      # --max-warnings defaults to -1, which always exits 0. Pass 0 so an
+      # issue count above zero exits 1.
+      - name: Smoke test - passive voice is reported
+        run: |
+          status=0
+          output=$(echo "The code was written." | node cli/dist/cli/index.js check --stdin --max-warnings 0) || status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 1 ]; then
+            echo "Expected exit 1 for passive text, got ${status}" >&2
+            exit 1
+          fi
+          grep -qE 'passive-voice +"was written"' <<< "$output"
 
       - name: Smoke test - clean text
-        run: echo "The team wrote good code." | node cli/dist/cli/index.js check --stdin --quiet
+        run: echo "The team wrote good code." | node cli/dist/cli/index.js check --stdin --quiet --max-warnings 0
 
       - name: Smoke test - list detectors
-        run: node cli/dist/cli/index.js list
+        run: |
+          output=$(node cli/dist/cli/index.js list)
+          printf '%s\n' "$output"
+          grep -q 'passiveVoice' <<< "$output"
 
       - name: Smoke test - list weasel words
-        run: node cli/dist/cli/index.js list weaselWords | head -5
+        run: |
+          output=$(node cli/dist/cli/index.js list weaselWords)
+          grep -qx 'very' <<< "$output"
 
       - name: Smoke test - init
         run: cd /tmp && node "${GITHUB_WORKSPACE}/cli/dist/cli/index.js" init && test -f .wscrc.json && rm .wscrc.json
