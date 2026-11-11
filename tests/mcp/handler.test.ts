@@ -727,6 +727,7 @@ describe('handleMcpRequest — internal error fallback', () => {
     const spy = vi.spyOn(core, 'analyzeText').mockImplementation(() => {
       throw new Error('unexpected');
     });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await handleMcpRequest({
       jsonrpc: '2.0',
@@ -739,6 +740,8 @@ describe('handleMcpRequest — internal error fallback', () => {
     });
 
     spy.mockRestore();
+    expect(logged).toHaveBeenCalledWith('mcp tools/call failed', 'check_text', expect.any(Error));
+    logged.mockRestore();
 
     expect(res.error).toBeDefined();
     expect(res.error!.code).toBe(-32603);

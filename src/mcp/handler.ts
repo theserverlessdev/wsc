@@ -277,6 +277,7 @@ export async function handleMcpRequest(request: unknown): Promise<JsonRpcRespons
         if (error.code && error.message) {
           return { jsonrpc: '2.0', id, error: { code: error.code, message: error.message } };
         }
+        console.error('mcp tools/call failed', toolName, err);
         return { jsonrpc: '2.0', id, error: { code: -32603, message: 'Internal error' } };
       }
     }
