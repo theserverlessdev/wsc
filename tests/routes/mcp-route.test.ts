@@ -77,6 +77,29 @@ describe('POST /mcp', () => {
     expect(data.id).toBeNull();
   });
 
+  it('returns JSON-RPC Invalid Request for a null body, not a 500', async () => {
+    const request = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'null',
+    });
+    const response = await POST({ request } as any);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.jsonrpc).toBe('2.0');
+    expect(data.id).toBeNull();
+    expect(data.error.code).toBe(-32600);
+    expect(data.error.message).toContain('Invalid Request');
+  });
+
+  it('returns JSON-RPC Invalid Request for a batch array', async () => {
+    const request = makeJsonRpcRequest([{ jsonrpc: '2.0', id: 1, method: 'initialize' }]);
+    const response = await POST({ request } as any);
+    const data = await response.json();
+    expect(data.id).toBeNull();
+    expect(data.error.code).toBe(-32600);
+  });
+
   it('returns Content-Type application/json', async () => {
     const request = makeJsonRpcRequest({
       jsonrpc: '2.0',

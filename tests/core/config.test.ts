@@ -254,6 +254,25 @@ describe('validateConfig', () => {
     expect(errors.some(e => e.includes('add must be an array'))).toBe(true);
   });
 
+  it('rejects empty strings in word-list add arrays', () => {
+    for (const name of ['weaselWords', 'hedging', 'adverbs']) {
+      const errors = validateConfig({ detectors: { [name]: { add: [''] } } });
+      expect(errors.some(e => e.includes('non-empty')), name).toBe(true);
+    }
+  });
+
+  it('rejects whitespace-only strings in word-list add arrays', () => {
+    const errors = validateConfig({ detectors: { weaselWords: { add: ['  \t'] } } });
+    expect(errors.some(e => e.includes('non-empty'))).toBe(true);
+  });
+
+  it('rejects empty strings in aiTells add and addPhrases', () => {
+    const addErrors = validateConfig({ detectors: { aiTells: { add: [''] } } });
+    expect(addErrors.some(e => e.includes('add') && e.includes('non-empty'))).toBe(true);
+    const phraseErrors = validateConfig({ detectors: { aiTells: { addPhrases: [''] } } });
+    expect(phraseErrors.some(e => e.includes('addPhrases') && e.includes('non-empty'))).toBe(true);
+  });
+
   it('nominalization add with missing suggestion', () => {
     const errors = validateConfig({ detectors: { nominalizations: { add: [{ word: 'foo' }] } } });
     expect(errors.some(e => e.includes('suggestion must be a non-empty string'))).toBe(true);
@@ -267,6 +286,13 @@ describe('validateConfig', () => {
   it('nominalization add with missing word', () => {
     const errors = validateConfig({ detectors: { nominalizations: { add: [{ suggestion: 'foo' }] } } });
     expect(errors.some(e => e.includes('word must be a non-empty string'))).toBe(true);
+  });
+
+  it('nominalization add rejects extra keys', () => {
+    const errors = validateConfig({
+      detectors: { nominalizations: { add: [{ word: 'foo', suggestion: 'bar', extra: true }] } },
+    });
+    expect(errors.some(e => e.includes('Unknown key') && e.includes('extra'))).toBe(true);
   });
 
   it('nominalization remove as non-array', () => {

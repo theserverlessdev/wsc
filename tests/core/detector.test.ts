@@ -4,6 +4,7 @@ import {
   detectPassiveVoice,
   detectDuplicateWords,
   removeDuplicateWord,
+  fixDuplicateWords,
 } from '../../src/core/detector';
 
 // ============================================================================
@@ -411,3 +412,56 @@ describe('removeDuplicateWord', () => {
     expect(result).toBe('word rest');
   });
 });
+
+function legacyFixDuplicates(text: string): { text: string; fixes: string[] } {
+  const fixes: string[] = [];
+  let duplicates = detectDuplicateWords(text);
+  while (duplicates.length > 0) {
+    const d = duplicates[duplicates.length - 1];
+    fixes.push(d.word);
+    text = removeDuplicateWord(text, d.index, d.length);
+    duplicates = detectDuplicateWords(text);
+  }
+  fixes.reverse();
+  return { text, fixes };
+}
+
+describe('fixDuplicateWords (audit #5)', () => {
+  it('removes chained runs like "The the THE"', () => {
+    const { text, fixes } = fixDuplicateWords('The the THE');
+    expect(text).toBe('The');
+    expect(fixes.map(f => f.toLowerCase())).toEqual(['the', 'the']);
+  });
+
+  it('matches the old detect-remove-repeat loop on random inputs', () => {
+    const seeds = [
+      '',
+      'hello',
+      'The the code',
+      'The the THE',
+      'the the code is is good',
+      'a a a a a',
+      'Hello HELLO world',
+      'word \t\n word rest',
+      'the\nthe code is is fine the the',
+    ];
+    for (let n = 0; n < 20; n++) {
+      const words = ['the', 'The', 'THE', 'code', 'is', 'a', 'good'];
+      const text = Array.from({ length: 12 }, (_, i) => words[(n * 3 + i) % words.length]).join(' ');
+      seeds.push(text);
+    }
+    for (const input of seeds) {
+      expect(fixDuplicateWords(input), input).toEqual(legacyFixDuplicates(input));
+    }
+  });
+
+  it('cleans 8k adjacent duplicates in under 200ms', () => {
+    const text = 'a '.repeat(8000);
+    const start = performance.now();
+    const result = fixDuplicateWords(text);
+    const elapsed = performance.now() - start;
+    expect(result.fixes.length).toBeGreaterThan(1000);
+    expect(elapsed).toBeLessThan(200);
+  });
+});
+

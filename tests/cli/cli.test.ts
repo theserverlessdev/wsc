@@ -73,6 +73,20 @@ describe('run() — exit codes propagate (regression: cac swallows action return
     expect(await run(['node', 'wsc', 'check', f, '--quiet', '--max-warnings', '0'])).toBe(0);
   });
 
+  it('returns 2 and prints an error for a non-numeric --max-warnings', async () => {
+    const f = join(dir, 'doc.md');
+    writeFileSync(f, CLEAN);
+    expect(await run(['node', 'wsc', 'check', f, '--quiet', '--max-warnings', 'zero'])).toBe(2);
+    const errText = err.mock.calls.map(c => String(c[0])).join('');
+    expect(errText).toContain('Error: --max-warnings must be an integer');
+  });
+
+  it('returns 2 for a fractional --max-warnings', async () => {
+    const f = join(dir, 'doc.md');
+    writeFileSync(f, CLEAN);
+    expect(await run(['node', 'wsc', 'check', f, '--quiet', '--max-warnings', '1.5'])).toBe(2);
+  });
+
   it('returns 2 when no files match the glob', async () => {
     expect(await run(['node', 'wsc', 'check', join(dir, 'nothing-*.md'), '--quiet'])).toBe(2);
   });

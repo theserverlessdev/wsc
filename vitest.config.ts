@@ -12,6 +12,8 @@ export default defineConfig({
         'src/core/config.ts',
         'src/core/config-node.ts',
         'src/core/analyzer.ts',
+        'src/core/markdown.ts',
+        'src/core/linecol.ts',
         'src/mcp/handler.ts',
         'src/routes/api/check/+server.ts',
         'src/routes/mcp/+server.ts',

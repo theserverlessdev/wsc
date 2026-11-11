@@ -32,9 +32,11 @@ describe('analyzeText', () => {
         nominalizations: { enabled: false },
         hedging: { enabled: false },
         adverbs: { enabled: false },
+        aiTells: { enabled: false },
       },
     });
     expect(result.summary.total).toBe(0);
+    expect(result.issues.aiTells).toEqual([]);
   });
 
   it('applies weasel word add/remove overrides', () => {

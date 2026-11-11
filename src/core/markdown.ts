@@ -32,19 +32,36 @@ export function maskMarkdown(input: string): string {
   const lines = input.split('\n');
   let inFence = false;
   let fenceChar = '';
+  let fenceLen = 0;
 
   const masked = lines.map((line) => {
     const openMatch = line.match(/^\s*(`{3,}|~{3,})/);
 
     if (inFence) {
       const closeMatch = line.match(/^\s*(`{3,}|~{3,})\s*$/);
-      if (closeMatch && closeMatch[1][0] === fenceChar) inFence = false;
+      if (
+        closeMatch &&
+        closeMatch[1][0] === fenceChar &&
+        closeMatch[1].length >= fenceLen
+      ) {
+        inFence = false;
+      }
       return blankLine(line);
     }
 
     if (openMatch) {
+      const fence = openMatch[1];
+      // CommonMark: a backtick fence's info string cannot contain backticks.
+      if (fence[0] === '`') {
+        const fenceAt = line.indexOf(fence);
+        const info = line.slice(fenceAt + fence.length);
+        if (info.includes('`')) {
+          return line.replace(/`[^`\n]*`/g, blankInline);
+        }
+      }
       inFence = true;
-      fenceChar = openMatch[1][0];
+      fenceChar = fence[0];
+      fenceLen = fence.length;
       return blankLine(line);
     }
 
@@ -60,12 +77,61 @@ export function maskMarkdown(input: string): string {
 
   let out = masked.join('\n');
 
-  // Single-line HTML comments: sentinel, same adjacency reasoning as inline code.
-  out = out.replace(/<!--[^\n]*?-->/g, blankInline);
-
-  // Multi-line HTML comments: space-blank (preserving newlines) so a comment
-  // block keeps acting as a paragraph break for the sentence splitter.
-  out = out.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+  // HTML comments: indexOf rather than lazy regex, so an unclosed `<!--`
+  // is O(n) instead of scanning to EOF at every opener.
+  out = maskSingleLineHtmlComments(out);
+  out = maskMultilineHtmlComments(out);
 
   return out;
+}
+
+/** Single-line `<!-- ... -->` (no newline between) → NUL sentinels. */
+function maskSingleLineHtmlComments(input: string): string {
+  let result = '';
+  let i = 0;
+  while (i < input.length) {
+    const start = input.indexOf('<!--', i);
+    if (start === -1) {
+      result += input.slice(i);
+      break;
+    }
+    result += input.slice(i, start);
+    const end = input.indexOf('-->', start + 4);
+    if (end === -1) {
+      result += input.slice(start);
+      break;
+    }
+    const newline = input.indexOf('\n', start);
+    if (newline !== -1 && newline < end) {
+      result += input.slice(start, newline + 1);
+      i = newline + 1;
+      continue;
+    }
+    result += SENTINEL.repeat(end + 3 - start);
+    i = end + 3;
+  }
+  return result;
+}
+
+/** Remaining (multi-line) `<!-- ... -->` → spaces, newlines preserved. */
+function maskMultilineHtmlComments(input: string): string {
+  let result = '';
+  let i = 0;
+  while (i < input.length) {
+    const start = input.indexOf('<!--', i);
+    if (start === -1) {
+      result += input.slice(i);
+      break;
+    }
+    result += input.slice(i, start);
+    const end = input.indexOf('-->', start + 4);
+    if (end === -1) {
+      result += input.slice(start);
+      break;
+    }
+    const comment = input.slice(start, end + 3);
+    result += comment.replace(/[^\n]/g, ' ');
+    i = end + 3;
+  }
+  return result;
 }

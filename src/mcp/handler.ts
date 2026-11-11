@@ -1,6 +1,5 @@
 import {
-  detectDuplicateWords,
-  removeDuplicateWord,
+  fixDuplicateWords,
   allWeaselWords,
   nominalizations,
   hedgingPhrases,
@@ -11,21 +10,26 @@ import {
   aiTellsPatterns,
   analyzeText,
   validateConfig,
+  makeLineIndex,
 } from '../core';
 import type { WscConfig } from '../core';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   method: string;
   params?: Record<string, unknown>;
 }
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   result?: unknown;
   error?: { code: number; message: string; data?: unknown };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 const TOOLS = [
@@ -88,11 +92,6 @@ const TOOLS = [
 
 const MAX_TEXT_LENGTH = 100_000;
 
-function getLineCol(text: string, index: number) {
-  const lines = text.substring(0, index).split('\n');
-  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
-}
-
 function getContext(text: string, index: number, length: number) {
   const start = Math.max(0, index - 20);
   const end = Math.min(text.length, index + length + 20);
@@ -126,6 +125,7 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
 
   const result = analyzeText(text, config, { markdown: format === 'markdown' });
   const { summary, issues, meta } = result;
+  const getLineCol = makeLineIndex(text);
 
   let output = `Writing Style Analysis\n======================\n`;
 
@@ -149,7 +149,7 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
       if (section.items.length > 0) {
         output += `\n${section.label} (${section.items.length}):\n`;
         for (const item of section.items) {
-          const { line, column } = getLineCol(text, item.index);
+          const { line, column } = getLineCol(item.index);
           const context = getContext(text, item.index, item.length);
           output += `  - "${item.display}" at line ${line}, column ${column}\n    Context: ${context}\n`;
         }
@@ -161,26 +161,18 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
 }
 
 function handleFixDuplicates(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
-  let text = args.text as string;
-  if (!text || typeof text !== 'string') {
+  const original = args.text as string;
+  if (!original || typeof original !== 'string') {
     throw { code: -32602, message: 'Missing or invalid "text" argument' };
   }
 
-  const fixes: string[] = [];
-  let duplicates = detectDuplicateWords(text);
-
-  while (duplicates.length > 0) {
-    const d = duplicates[duplicates.length - 1];
-    fixes.push(d.word);
-    text = removeDuplicateWord(text, d.index, d.length);
-    duplicates = detectDuplicateWords(text);
-  }
+  const { text, fixes } = fixDuplicateWords(original);
 
   let output: string;
   if (fixes.length === 0) {
     output = `No duplicate words found. Text is clean.\n\n${text}`;
   } else {
-    output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.reverse().join(', ')}\n\nCleaned text:\n${text}`;
+    output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.join(', ')}\n\nCleaned text:\n${text}`;
   }
 
   return { content: [{ type: 'text', text: output }] };
@@ -217,11 +209,15 @@ function handleListWordLists(): { content: Array<{ type: string; text: string }>
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
-export async function handleMcpRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-  const { jsonrpc, id, method, params } = request;
+export async function handleMcpRequest(request: unknown): Promise<JsonRpcResponse> {
+  if (!isPlainObject(request)) {
+    return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
+  }
+
+  const { jsonrpc, id, method, params } = request as unknown as JsonRpcRequest;
 
   if (jsonrpc !== '2.0') {
-    return { jsonrpc: '2.0', id: id ?? 0, error: { code: -32600, message: 'Invalid JSON-RPC version' } };
+    return { jsonrpc: '2.0', id: id ?? null, error: { code: -32600, message: 'Invalid JSON-RPC version' } };
   }
 
   switch (method) {
@@ -281,6 +277,7 @@ export async function handleMcpRequest(request: JsonRpcRequest): Promise<JsonRpc
         if (error.code && error.message) {
           return { jsonrpc: '2.0', id, error: { code: error.code, message: error.message } };
         }
+        console.error('mcp tools/call failed', toolName, err);
         return { jsonrpc: '2.0', id, error: { code: -32603, message: 'Internal error' } };
       }
     }

@@ -109,6 +109,6 @@ runs:
         : "${code:=0}"
         printf '%s\n' "$output"
 
-        total=$(printf '%s\n' "$output" | grep -oE 'Found [0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+        total=$(printf '%s\n' "$output" | grep -E '^Found [0-9]+ issue' | tail -1 | grep -oE '[0-9]+' | head -1 || true)
         echo "total-issues=${total:-0}" >> "$GITHUB_OUTPUT"
         exit "$code"

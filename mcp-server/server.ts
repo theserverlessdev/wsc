@@ -1,11 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { AnalyzeOptions } from '../src/core/index.js';
 import {
-  detectDuplicateWords,
-  removeDuplicateWord,
+  fixDuplicateWords,
   allWeaselWords,
   nominalizations,
   hedgingPhrases,
@@ -16,6 +15,7 @@ import {
   aiTellsPatterns,
   analyzeText as coreAnalyzeText,
   validateConfig,
+  makeLineIndex,
 } from '../src/core/index.js';
 import type { WscConfig } from '../src/core/index.js';
 import { findConfigFile, loadConfigFromFile, readPackageVersion } from '../src/core/config-node.js';
@@ -24,8 +24,7 @@ import { isMarkdownFile } from '../src/core/markdown.js';
 const MAX_TEXT_LENGTH = 100_000;
 
 export function getLineCol(text: string, index: number) {
-  const lines = text.substring(0, index).split('\n');
-  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
+  return makeLineIndex(text)(index);
 }
 
 export function getContext(text: string, index: number, length: number) {
@@ -39,6 +38,7 @@ export function getContext(text: string, index: number, length: number) {
 export function formatAnalysis(text: string, config?: WscConfig, options?: AnalyzeOptions): string {
   const result = coreAnalyzeText(text, config, options);
   const { summary, issues, meta } = result;
+  const getLineColFor = makeLineIndex(text);
 
   let output = `Writing Style Analysis\n======================\n`;
 
@@ -62,7 +62,7 @@ export function formatAnalysis(text: string, config?: WscConfig, options?: Analy
       if (section.items.length > 0) {
         output += `\n${section.label} (${section.items.length}):\n`;
         for (const item of section.items) {
-          const { line, column } = getLineCol(text, item.index);
+          const { line, column } = getLineColFor(item.index);
           const context = getContext(text, item.index, item.length);
           output += `  - "${item.display}" at line ${line}, column ${column}\n    Context: ${context}\n`;
         }
@@ -122,22 +122,13 @@ export function createServer(): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ text }) => {
-      let cleaned = text;
-      const fixes: string[] = [];
-      let duplicates = detectDuplicateWords(cleaned);
-
-      while (duplicates.length > 0) {
-        const d = duplicates[duplicates.length - 1];
-        fixes.push(d.word);
-        cleaned = removeDuplicateWord(cleaned, d.index, d.length);
-        duplicates = detectDuplicateWords(cleaned);
-      }
+      const { text: cleaned, fixes } = fixDuplicateWords(text);
 
       let output: string;
       if (fixes.length === 0) {
         output = `No duplicate words found. Text is clean.\n\n${cleaned}`;
       } else {
-        output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.reverse().join(', ')}\n\nCleaned text:\n${cleaned}`;
+        output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.join(', ')}\n\nCleaned text:\n${cleaned}`;
       }
 
       return { content: [{ type: 'text', text: output }] };
@@ -190,6 +181,13 @@ export function createServer(): McpServer {
     },
     async ({ path, config: rawConfig }) => {
       try {
+        const info = await stat(path);
+        if (!info.isFile()) {
+          return { content: [{ type: 'text', text: 'Error: Path is not a regular file' }] };
+        }
+        if (info.size > MAX_TEXT_LENGTH * 4) {
+          return { content: [{ type: 'text', text: `Error: File exceeds maximum length of ${MAX_TEXT_LENGTH} characters` }] };
+        }
         const text = await readFile(path, 'utf-8');
         if (text.length > MAX_TEXT_LENGTH) {
           return { content: [{ type: 'text', text: `Error: File exceeds maximum length of ${MAX_TEXT_LENGTH} characters` }] };

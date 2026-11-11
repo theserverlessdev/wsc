@@ -19,13 +19,26 @@ describe('handleMcpRequest — protocol', () => {
     expect(res.error!.message).toContain('Invalid JSON-RPC version');
   });
 
-  it('uses id ?? 0 when id is missing with invalid version', async () => {
+  it('uses id ?? null when id is missing with invalid version', async () => {
     const res = await handleMcpRequest({
       jsonrpc: '1.0' as any,
       id: undefined as any,
       method: 'initialize',
     });
-    expect(res.id).toBe(0);
+    expect(res.id).toBeNull();
+  });
+
+  it('rejects a null body with Invalid Request and id null', async () => {
+    const res = await handleMcpRequest(null);
+    expect(res.error).toBeDefined();
+    expect(res.error!.code).toBe(-32600);
+    expect(res.id).toBeNull();
+  });
+
+  it('rejects a JSON-RPC batch array with Invalid Request and id null', async () => {
+    const res = await handleMcpRequest([{ jsonrpc: '2.0', id: 1, method: 'ping' }]);
+    expect(res.error!.code).toBe(-32600);
+    expect(res.id).toBeNull();
   });
 
   it('returns method not found for unknown methods', async () => {
@@ -714,6 +727,7 @@ describe('handleMcpRequest — internal error fallback', () => {
     const spy = vi.spyOn(core, 'analyzeText').mockImplementation(() => {
       throw new Error('unexpected');
     });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await handleMcpRequest({
       jsonrpc: '2.0',
@@ -726,6 +740,8 @@ describe('handleMcpRequest — internal error fallback', () => {
     });
 
     spy.mockRestore();
+    expect(logged).toHaveBeenCalledWith('mcp tools/call failed', 'check_text', expect.any(Error));
+    logged.mockRestore();
 
     expect(res.error).toBeDefined();
     expect(res.error!.code).toBe(-32603);

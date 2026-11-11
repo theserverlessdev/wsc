@@ -20,6 +20,14 @@ describe('maskMarkdown', () => {
     expect(out.split('\n').length).toBe(input.split('\n').length);
   });
 
+  it('blanks tilde-fenced code blocks to spaces', () => {
+    const input = 'Before.\n\n~~~\nconst configuration = 1;\n~~~\n\nAfter.';
+    const out = maskMarkdown(input);
+    expect(out).not.toContain('configuration');
+    expect(out).toContain('Before.');
+    expect(out).toContain('After.');
+  });
+
   it('blanks fenced code blocks to spaces (whole-line construct)', () => {
     const input = 'Before.\n\n```js\nconst configuration = 1;\n```\n\nAfter.';
     const out = maskMarkdown(input);
@@ -87,6 +95,40 @@ describe('maskMarkdown', () => {
     const out = maskMarkdown('text\n```\ncode line\nmore code');
     expect(out).toContain('text');
     expect(out).not.toContain('code line');
+  });
+
+  it('leaves an unclosed HTML comment in place (does not blank following prose)', () => {
+    const input = 'Before. <!-- not closed\nThis is very clearly prose.';
+    const out = maskMarkdown(input);
+    expect(out).toContain('very clearly prose');
+    expect(out).toContain('<!-- not closed');
+  });
+
+  it('masks many unclosed <!-- openers in under 200ms', () => {
+    const input = '<!--'.repeat(25000);
+    const start = performance.now();
+    const out = maskMarkdown(input);
+    const elapsed = performance.now() - start;
+    expect(out).toBe(input);
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  it('does not treat a ```js``` line as a fence opener (audit #10)', () => {
+    const text = ' ```js``` \nThis sentence is very clearly basically prose.';
+    const result = analyzeText(text, undefined, { markdown: true });
+    expect(result.issues.weaselWords.length).toBeGreaterThan(0);
+    expect(text.substring(
+      result.issues.weaselWords[0].index,
+      result.issues.weaselWords[0].index + result.issues.weaselWords[0].length,
+    ).toLowerCase()).toMatch(/very|clearly|basically/);
+  });
+
+  it('closes a fence only on the same character with length >= the opener', () => {
+    const text = '````outer\n```inner\ncode basically\n```\n````\nThis is very clearly prose.';
+    const result = analyzeText(text, undefined, { markdown: true });
+    const weasels = result.issues.weaselWords.map(w => w.word.toLowerCase());
+    expect(weasels).not.toContain('basically');
+    expect(weasels).toContain('very');
   });
 });
 

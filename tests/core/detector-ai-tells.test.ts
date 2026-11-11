@@ -241,4 +241,14 @@ describe('detectAiTells', () => {
   it('an empty pattern list disables structural detection', () => {
     expect(detectAiTells('Experts agree this works.', [], [], [])).toEqual([]);
   });
+
+  it('dedupes 8k repeated vocabulary hits in under 200ms', () => {
+    const text = 'delve '.repeat(8000);
+    const start = performance.now();
+    const results = detectAiTells(text);
+    const elapsed = performance.now() - start;
+    expect(results.length).toBeGreaterThan(1000);
+    expect(elapsed).toBeLessThan(200);
+  });
 });
+

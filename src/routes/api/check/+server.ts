@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { analyzeText, validateConfig } from '../../../core';
+import { analyzeText, validateConfig, makeLineIndex } from '../../../core';
 import type { WscConfig } from '../../../core';
 
 const MAX_TEXT_LENGTH = 100_000;
@@ -44,10 +44,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const result = analyzeText(text, config, { markdown: body.format === 'markdown' });
 
-  const getLineCol = (index: number) => {
-    const lines = text.substring(0, index).split('\n');
-    return { line: lines.length, column: lines[lines.length - 1].length + 1 };
-  };
+  const getLineCol = makeLineIndex(text);
 
   const getContext = (index: number, length: number) => {
     const start = Math.max(0, index - 20);

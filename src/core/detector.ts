@@ -13,8 +13,26 @@ import {
   aiTellsPatterns as defaultAiPatterns,
 } from "./words.js";
 
+// A run longer than the longest abbreviation can never match one, so the
+// abbreviation back-walk in splitSentences is capped at this + 1.
+const MAX_ABBREVIATION_LEN = [...abbreviations].reduce((m, a) => Math.max(m, a.length), 0);
+
 function escapeForRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Drop empty / whitespace-only custom entries so they cannot compile to a zero-width alternative. */
+function nonemptyStrings(list: string[]): string[] {
+  return list.filter(s => s.trim() !== '');
+}
+
+/** Zero-width `exec` matches never advance lastIndex; bump it so the loop cannot spin forever. */
+function advanceIfEmpty(regex: RegExp, match: RegExpExecArray): boolean {
+  if (match[0].length === 0) {
+    regex.lastIndex++;
+    return true;
+  }
+  return false;
 }
 
 // Multi-word entries should survive hard-wrapped lines ("kind\nof") and curly
@@ -22,8 +40,10 @@ function escapeForRegex(str: string): string {
 // either apostrophe. The whitespace run may contain at most one newline —
 // a blank line is a paragraph break, and phrases don’t span paragraphs.
 function flexibleSource(str: string): string {
-  return escapeForRegex(str)
-    .replace(/ /g, `(?:(?!\\n[ \\t\\r]*\\n)\\s)+`)
+  // Collapse whitespace runs first so N spaces become ONE flexible group.
+  // Adjacent `(…\s)+` groups (one per space) backtrack polynomially.
+  return escapeForRegex(str.trim())
+    .replace(/\s+/g, `(?:(?!\\n[ \\t\\r]*\\n)\\s)+`)
     .replace(/'/g, `['’]`);
 }
 
@@ -33,7 +53,7 @@ export function detectWeaselWords(text: string, wordList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ word: string; index: number; length: number }> = [];
-  const words = wordList ?? allWeaselWords;
+  const words = nonemptyStrings(wordList ?? allWeaselWords);
   if (words.length === 0) return results;
 
   // Longest-first so "kind of" wins over a hypothetical "kind" entry
@@ -45,6 +65,7 @@ export function detectWeaselWords(text: string, wordList?: string[]): Array<{
 
   let match;
   while ((match = weaselWordsPattern.exec(text)) !== null) {
+    if (advanceIfEmpty(weaselWordsPattern, match)) continue;
     results.push({
       word: match[0],
       index: match.index,
@@ -105,6 +126,7 @@ export function detectPassiveVoice(text: string): Array<{
 
   let match;
   while ((match = bePattern.exec(text)) !== null) {
+    if (advanceIfEmpty(bePattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -112,6 +134,7 @@ export function detectPassiveVoice(text: string): Array<{
     });
   }
   while ((match = getPattern.exec(text)) !== null) {
+    if (advanceIfEmpty(getPattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -134,6 +157,7 @@ export function detectDuplicateWords(text: string): Array<{
 
   let match;
   while ((match = regex.exec(text)) !== null) {
+    if (advanceIfEmpty(regex, match)) continue;
     // The backreference always ends the match, so its position is
     // deterministic — indexOf would find the FIRST word when cases match.
     const secondWordIndex = match.index + match[0].length - match[2].length;
@@ -161,6 +185,24 @@ export function removeDuplicateWord(
     whitespaceStart--;
   }
   return text.substring(0, whitespaceStart) + text.substring(index + length);
+}
+
+/**
+ * Remove every duplicate reported by a single detectDuplicateWords pass,
+ * right-to-left so earlier indexes stay valid. Equivalent to the old
+ * detect-remove-repeat loop without the quadratic rescans.
+ */
+export function fixDuplicateWords(text: string): { text: string; fixes: string[] } {
+  const duplicates = detectDuplicateWords(text);
+  let result = text;
+  const fixes: string[] = [];
+  for (let i = duplicates.length - 1; i >= 0; i--) {
+    const d = duplicates[i];
+    fixes.push(d.word);
+    result = removeDuplicateWord(result, d.index, d.length);
+  }
+  fixes.reverse();
+  return { text: result, fixes };
 }
 
 /**
@@ -213,10 +255,12 @@ export function splitSentences(text: string): Array<{ text: string; index: numbe
         continue;
       }
 
-      // Check for abbreviation
+      // Check for abbreviation. Walk back at most MAX_ABBREVIATION_LEN + 1
+      // characters: anything longer cannot be an abbreviation.
       if (text[i] === '.') {
+        const minStart = Math.max(0, i - (MAX_ABBREVIATION_LEN + 1));
         let wordStart = i - 1;
-        while (wordStart >= 0 && /[a-zA-Z.]/.test(text[wordStart])) {
+        while (wordStart >= minStart && /[a-zA-Z.]/.test(text[wordStart])) {
           wordStart--;
         }
         wordStart++;
@@ -296,7 +340,7 @@ export function detectNominalizations(
   length: number;
 }> {
   const results: Array<{ word: string; suggestion: string; index: number; length: number }> = [];
-  const words = wordList ?? defaultNominalizations;
+  const words = (wordList ?? defaultNominalizations).filter(w => w.word.trim() !== '');
   if (words.length === 0) return results;
 
   const pattern = new RegExp(
@@ -308,6 +352,7 @@ export function detectNominalizations(
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       word: match[0],
       suggestion: suggestionMap.get(match[0].toLowerCase()) || '',
@@ -325,7 +370,7 @@ export function detectHedging(text: string, phraseList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ phrase: string; index: number; length: number }> = [];
-  const phrases = phraseList ?? defaultHedgingPhrases;
+  const phrases = nonemptyStrings(phraseList ?? defaultHedgingPhrases);
   if (phrases.length === 0) return results;
 
   // Sort by length descending so longer phrases match first
@@ -335,6 +380,7 @@ export function detectHedging(text: string, phraseList?: string[]): Array<{
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -351,7 +397,7 @@ export function detectAdverbs(text: string, wordList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ word: string; index: number; length: number }> = [];
-  const words = wordList ?? defaultFillerAdverbs;
+  const words = nonemptyStrings(wordList ?? defaultFillerAdverbs);
   if (words.length === 0) return results;
 
   const pattern = new RegExp(
@@ -361,6 +407,7 @@ export function detectAdverbs(text: string, wordList?: string[]): Array<{
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       word: match[0],
       index: match.index,
@@ -399,10 +446,12 @@ export function detectAiTells(
 
   // Vocabulary tells: whole-word matches, including inflected variants
   for (const { word, variants, reason } of vocab) {
-    const forms = [word, ...(variants ?? [])].map(escapeForRegex).join('|');
-    const regex = new RegExp(`\\b(?:${forms})\\b`, 'gi');
+    const forms = nonemptyStrings([word, ...(variants ?? [])]).map(escapeForRegex);
+    if (forms.length === 0) continue;
+    const regex = new RegExp(`\\b(?:${forms.join('|')})\\b`, 'gi');
     let match;
     while ((match = regex.exec(text)) !== null) {
+      if (advanceIfEmpty(regex, match)) continue;
       results.push({
         text: cleanSentinels(match[0]),
         index: match.index,
@@ -414,9 +463,11 @@ export function detectAiTells(
 
   // Phrase tells: case-insensitive whole-phrase matches
   for (const { phrase, reason } of phrases) {
+    if (phrase.trim() === '') continue;
     const regex = phraseRegex(phrase);
     let match;
     while ((match = regex.exec(text)) !== null) {
+      if (advanceIfEmpty(regex, match)) continue;
       results.push({
         text: cleanSentinels(match[0]),
         index: match.index,
@@ -454,9 +505,14 @@ export function detectAiTells(
   // matches it covers, so one forward pass suffices.
   results.sort((a, b) => a.index - b.index || b.length - a.length);
   const kept: typeof results = [];
+  // Kept spans are already sorted by index, so r is contained in some kept
+  // span iff it ends at or before the furthest kept end seen so far.
+  let maxKeptEnd = -1;
   for (const r of results) {
-    const covered = kept.some(k => k.index <= r.index && k.index + k.length >= r.index + r.length);
-    if (!covered) kept.push(r);
+    const end = r.index + r.length;
+    if (end <= maxKeptEnd) continue;
+    kept.push(r);
+    maxKeptEnd = end;
   }
   return kept;
 }
