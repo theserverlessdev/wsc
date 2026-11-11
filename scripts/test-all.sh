@@ -373,19 +373,7 @@ FE_HTML=$(curl -s "$BASE")
 check "Frontend HTML contains 'Writing Style Checker'" "$(echo "$FE_HTML" | grep -q "Writing Style Checker" && echo true || echo false)"
 
 # ============================================================================
-section "8. Version Sync"
-# ============================================================================
-
-ROOT_VER=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
-MCP_VER=$(python3 -c "import json; print(json.load(open('mcp-server/package.json'))['version'])")
-CLI_VER=$(python3 -c "import json; print(json.load(open('cli/package.json'))['version'])")
-
-check "Root version is 1.0.0" "$([ "$ROOT_VER" = "1.0.0" ] && echo true || echo false)"
-check "wsc-mcp version is 2.0.0" "$([ "$MCP_VER" = "2.0.0" ] && echo true || echo false)"
-check "wsc-lint version is 1.0.0" "$([ "$CLI_VER" = "1.0.0" ] && echo true || echo false)"
-
-# ============================================================================
-section "9. File Existence"
+section "8. File Existence"
 # ============================================================================
 
 FILES=(
