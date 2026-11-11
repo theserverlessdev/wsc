@@ -505,9 +505,14 @@ export function detectAiTells(
   // matches it covers, so one forward pass suffices.
   results.sort((a, b) => a.index - b.index || b.length - a.length);
   const kept: typeof results = [];
+  // Kept spans are already sorted by index, so r is contained in some kept
+  // span iff it ends at or before the furthest kept end seen so far.
+  let maxKeptEnd = -1;
   for (const r of results) {
-    const covered = kept.some(k => k.index <= r.index && k.index + k.length >= r.index + r.length);
-    if (!covered) kept.push(r);
+    const end = r.index + r.length;
+    if (end <= maxKeptEnd) continue;
+    kept.push(r);
+    maxKeptEnd = end;
   }
   return kept;
 }
