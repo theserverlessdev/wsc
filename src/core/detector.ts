@@ -36,8 +36,10 @@ function advanceIfEmpty(regex: RegExp, match: RegExpExecArray): boolean {
 // either apostrophe. The whitespace run may contain at most one newline —
 // a blank line is a paragraph break, and phrases don’t span paragraphs.
 function flexibleSource(str: string): string {
-  return escapeForRegex(str)
-    .replace(/ /g, `(?:(?!\\n[ \\t\\r]*\\n)\\s)+`)
+  // Collapse whitespace runs first so N spaces become ONE flexible group.
+  // Adjacent `(…\s)+` groups (one per space) backtrack polynomially.
+  return escapeForRegex(str.trim())
+    .replace(/\s+/g, `(?:(?!\\n[ \\t\\r]*\\n)\\s)+`)
     .replace(/'/g, `['’]`);
 }
 
