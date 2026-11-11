@@ -11,6 +11,8 @@ export {
 export { analyzeText } from './analyzer.js';
 export type { AnalysisResult, AnalyzeOptions } from './analyzer.js';
 export { maskMarkdown, isMarkdownFile } from './markdown.js';
+export { makeLineIndex } from './linecol.js';
+export type { LineCol } from './linecol.js';
 export {
   mergeConfig, applyWordListOverrides, applyNominalizationOverrides,
   applyAiTellsVocabOverrides, applyAiTellsPhraseOverrides, applyAiTellsPatternOverrides,

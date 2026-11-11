@@ -11,6 +11,7 @@ import {
   aiTellsPatterns,
   analyzeText,
   validateConfig,
+  makeLineIndex,
 } from '../core';
 import type { WscConfig } from '../core';
 
@@ -88,11 +89,6 @@ const TOOLS = [
 
 const MAX_TEXT_LENGTH = 100_000;
 
-function getLineCol(text: string, index: number) {
-  const lines = text.substring(0, index).split('\n');
-  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
-}
-
 function getContext(text: string, index: number, length: number) {
   const start = Math.max(0, index - 20);
   const end = Math.min(text.length, index + length + 20);
@@ -126,6 +122,7 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
 
   const result = analyzeText(text, config, { markdown: format === 'markdown' });
   const { summary, issues, meta } = result;
+  const getLineCol = makeLineIndex(text);
 
   let output = `Writing Style Analysis\n======================\n`;
 
@@ -149,7 +146,7 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
       if (section.items.length > 0) {
         output += `\n${section.label} (${section.items.length}):\n`;
         for (const item of section.items) {
-          const { line, column } = getLineCol(text, item.index);
+          const { line, column } = getLineCol(item.index);
           const context = getContext(text, item.index, item.length);
           output += `  - "${item.display}" at line ${line}, column ${column}\n    Context: ${context}\n`;
         }

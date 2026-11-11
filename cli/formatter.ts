@@ -1,5 +1,6 @@
 import pico from 'picocolors';
 import type { AnalysisResult } from '../src/core/analyzer.js';
+import { makeLineIndex } from '../src/core/linecol.js';
 
 // Pattern matches can span most of a sentence; keep display lines readable.
 function truncate(s: string, max = 48): string {
@@ -33,9 +34,10 @@ export function formatTextWithLineCol(
   const loc = (line: number, col: number) => c.dim(`${filePath}:${line}:${col}`);
   const tag = (label: string) => paint[label](label);
 
+  const locate = makeLineIndex(text);
   const getLineCol = (index: number) => {
-    const before = text.substring(0, index).split('\n');
-    return { line: before.length, col: before[before.length - 1].length + 1 };
+    const { line, column } = locate(index);
+    return { line, col: column };
   };
 
   for (const w of issues.weaselWords) {
@@ -89,9 +91,10 @@ export function formatGitHub(
   const lines: string[] = [];
   const { issues } = result;
 
+  const locate = makeLineIndex(text);
   const getLineCol = (index: number) => {
-    const before = text.substring(0, index).split('\n');
-    return { line: before.length, col: before[before.length - 1].length + 1 };
+    const { line, column } = locate(index);
+    return { line, col: column };
   };
 
   for (const w of issues.weaselWords) {

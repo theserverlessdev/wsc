@@ -16,6 +16,7 @@ import {
   aiTellsPatterns,
   analyzeText as coreAnalyzeText,
   validateConfig,
+  makeLineIndex,
 } from '../src/core/index.js';
 import type { WscConfig } from '../src/core/index.js';
 import { findConfigFile, loadConfigFromFile, readPackageVersion } from '../src/core/config-node.js';
@@ -24,8 +25,7 @@ import { isMarkdownFile } from '../src/core/markdown.js';
 const MAX_TEXT_LENGTH = 100_000;
 
 export function getLineCol(text: string, index: number) {
-  const lines = text.substring(0, index).split('\n');
-  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
+  return makeLineIndex(text)(index);
 }
 
 export function getContext(text: string, index: number, length: number) {
@@ -39,6 +39,7 @@ export function getContext(text: string, index: number, length: number) {
 export function formatAnalysis(text: string, config?: WscConfig, options?: AnalyzeOptions): string {
   const result = coreAnalyzeText(text, config, options);
   const { summary, issues, meta } = result;
+  const getLineColFor = makeLineIndex(text);
 
   let output = `Writing Style Analysis\n======================\n`;
 
@@ -62,7 +63,7 @@ export function formatAnalysis(text: string, config?: WscConfig, options?: Analy
       if (section.items.length > 0) {
         output += `\n${section.label} (${section.items.length}):\n`;
         for (const item of section.items) {
-          const { line, column } = getLineCol(text, item.index);
+          const { line, column } = getLineColFor(item.index);
           const context = getContext(text, item.index, item.length);
           output += `  - "${item.display}" at line ${line}, column ${column}\n    Context: ${context}\n`;
         }
