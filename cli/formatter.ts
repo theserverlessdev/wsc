@@ -83,6 +83,18 @@ export function formatJson(files: Array<{ path: string; result: AnalysisResult }
   })), null, 2);
 }
 
+function escapeWorkflowData(s: string): string {
+  return s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+}
+
+function escapeWorkflowProperty(s: string): string {
+  return escapeWorkflowData(s).replace(/:/g, '%3A').replace(/,/g, '%2C');
+}
+
+function githubWarning(filePath: string, line: number, col: number, message: string): string {
+  return `::warning file=${escapeWorkflowProperty(filePath)},line=${line},col=${col}::${escapeWorkflowData(message)}`;
+}
+
 export function formatGitHub(
   filePath: string,
   text: string,
@@ -99,35 +111,35 @@ export function formatGitHub(
 
   for (const w of issues.weaselWords) {
     const { line, col } = getLineCol(w.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Weasel word: "${w.word}"`);
+    lines.push(githubWarning(filePath, line, col, `Weasel word: "${w.word}"`));
   }
   for (const p of issues.passiveVoice) {
     const { line, col } = getLineCol(p.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Passive voice: "${p.phrase}"`);
+    lines.push(githubWarning(filePath, line, col, `Passive voice: "${p.phrase}"`));
   }
   for (const d of issues.duplicateWords) {
     const { line, col } = getLineCol(d.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Duplicate word: "${d.word}"`);
+    lines.push(githubWarning(filePath, line, col, `Duplicate word: "${d.word}"`));
   }
   for (const s of issues.longSentences) {
     const { line, col } = getLineCol(s.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Long sentence: ${s.wordCount} words`);
+    lines.push(githubWarning(filePath, line, col, `Long sentence: ${s.wordCount} words`));
   }
   for (const n of issues.nominalizations) {
     const { line, col } = getLineCol(n.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Nominalization: "${n.word}" (try: ${n.suggestion})`);
+    lines.push(githubWarning(filePath, line, col, `Nominalization: "${n.word}" (try: ${n.suggestion})`));
   }
   for (const h of issues.hedging) {
     const { line, col } = getLineCol(h.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Hedging: "${h.phrase}"`);
+    lines.push(githubWarning(filePath, line, col, `Hedging: "${h.phrase}"`));
   }
   for (const a of issues.adverbs) {
     const { line, col } = getLineCol(a.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::Filler adverb: "${a.word}"`);
+    lines.push(githubWarning(filePath, line, col, `Filler adverb: "${a.word}"`));
   }
   for (const t of issues.aiTells) {
     const { line, col } = getLineCol(t.index);
-    lines.push(`::warning file=${filePath},line=${line},col=${col}::AI tell: "${truncate(t.text)}" — ${t.reason}`);
+    lines.push(githubWarning(filePath, line, col, `AI tell: "${truncate(t.text)}" — ${t.reason}`));
   }
 
   return lines.join('\n');

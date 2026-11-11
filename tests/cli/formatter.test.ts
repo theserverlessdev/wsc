@@ -93,6 +93,17 @@ describe('formatGitHub', () => {
     const output = formatGitHub('test.md', SAMPLE, result);
     expect(output).toMatch(/line=\d+,col=\d+/);
   });
+
+  it('escapes %, newlines, commas and colons in GitHub workflow commands', () => {
+    const text = 'The code was\nwritten very quickly.';
+    const result = analyzeText(text);
+    const output = formatGitHub('path,with:colon.md', text, result);
+    expect(output).toContain('file=path%2Cwith%3Acolon.md');
+    expect(output).not.toMatch(/::warning file=path,with:colon/);
+    const warningLines = output.split('\n').filter(l => l.startsWith('::warning'));
+    expect(warningLines.length).toBeGreaterThan(0);
+    expect(warningLines.some(l => l.includes('%0A'))).toBe(true);
+  });
 });
 
 describe('formatTextWithLineCol — color', () => {
