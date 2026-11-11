@@ -214,7 +214,7 @@ export async function handleMcpRequest(request: unknown): Promise<JsonRpcRespons
     return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
   }
 
-  const { jsonrpc, id, method, params } = request as JsonRpcRequest;
+  const { jsonrpc, id, method, params } = request as unknown as JsonRpcRequest;
 
   if (jsonrpc !== '2.0') {
     return { jsonrpc: '2.0', id: id ?? null, error: { code: -32600, message: 'Invalid JSON-RPC version' } };
