@@ -286,6 +286,12 @@ export function validateConfig(config: unknown): string[] {
       if (detObj.add !== undefined) {
         if (!Array.isArray(detObj.add) || !detObj.add.every((v: unknown) => typeof v === 'string')) {
           errors.push(`detectors.${name}.add must be an array of strings`);
+        } else {
+          for (let i = 0; i < detObj.add.length; i++) {
+            if (!(detObj.add[i] as string).trim()) {
+              errors.push(`detectors.${name}.add[${i}] must be a non-empty string`);
+            }
+          }
         }
       }
       if (detObj.remove !== undefined) {
@@ -300,6 +306,13 @@ export function validateConfig(config: unknown): string[] {
         if (detObj[field] !== undefined) {
           if (!Array.isArray(detObj[field]) || !(detObj[field] as unknown[]).every((v: unknown) => typeof v === 'string')) {
             errors.push(`detectors.${name}.${field} must be an array of strings`);
+          } else if (field === 'add' || field === 'addPhrases') {
+            const arr = detObj[field] as string[];
+            for (let i = 0; i < arr.length; i++) {
+              if (!arr[i].trim()) {
+                errors.push(`detectors.${name}.${field}[${i}] must be a non-empty string`);
+              }
+            }
           }
         }
       }

@@ -17,6 +17,20 @@ function escapeForRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Drop empty / whitespace-only custom entries so they cannot compile to a zero-width alternative. */
+function nonemptyStrings(list: string[]): string[] {
+  return list.filter(s => s.trim() !== '');
+}
+
+/** Zero-width `exec` matches never advance lastIndex; bump it so the loop cannot spin forever. */
+function advanceIfEmpty(regex: RegExp, match: RegExpExecArray): boolean {
+  if (match[0].length === 0) {
+    regex.lastIndex++;
+    return true;
+  }
+  return false;
+}
+
 // Multi-word entries should survive hard-wrapped lines ("kind\nof") and curly
 // apostrophes ("it’s"), so spaces become flexible whitespace and ‘ matches
 // either apostrophe. The whitespace run may contain at most one newline —
@@ -33,7 +47,7 @@ export function detectWeaselWords(text: string, wordList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ word: string; index: number; length: number }> = [];
-  const words = wordList ?? allWeaselWords;
+  const words = nonemptyStrings(wordList ?? allWeaselWords);
   if (words.length === 0) return results;
 
   // Longest-first so "kind of" wins over a hypothetical "kind" entry
@@ -45,6 +59,7 @@ export function detectWeaselWords(text: string, wordList?: string[]): Array<{
 
   let match;
   while ((match = weaselWordsPattern.exec(text)) !== null) {
+    if (advanceIfEmpty(weaselWordsPattern, match)) continue;
     results.push({
       word: match[0],
       index: match.index,
@@ -105,6 +120,7 @@ export function detectPassiveVoice(text: string): Array<{
 
   let match;
   while ((match = bePattern.exec(text)) !== null) {
+    if (advanceIfEmpty(bePattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -112,6 +128,7 @@ export function detectPassiveVoice(text: string): Array<{
     });
   }
   while ((match = getPattern.exec(text)) !== null) {
+    if (advanceIfEmpty(getPattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -134,6 +151,7 @@ export function detectDuplicateWords(text: string): Array<{
 
   let match;
   while ((match = regex.exec(text)) !== null) {
+    if (advanceIfEmpty(regex, match)) continue;
     // The backreference always ends the match, so its position is
     // deterministic — indexOf would find the FIRST word when cases match.
     const secondWordIndex = match.index + match[0].length - match[2].length;
@@ -296,7 +314,7 @@ export function detectNominalizations(
   length: number;
 }> {
   const results: Array<{ word: string; suggestion: string; index: number; length: number }> = [];
-  const words = wordList ?? defaultNominalizations;
+  const words = (wordList ?? defaultNominalizations).filter(w => w.word.trim() !== '');
   if (words.length === 0) return results;
 
   const pattern = new RegExp(
@@ -308,6 +326,7 @@ export function detectNominalizations(
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       word: match[0],
       suggestion: suggestionMap.get(match[0].toLowerCase()) || '',
@@ -325,7 +344,7 @@ export function detectHedging(text: string, phraseList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ phrase: string; index: number; length: number }> = [];
-  const phrases = phraseList ?? defaultHedgingPhrases;
+  const phrases = nonemptyStrings(phraseList ?? defaultHedgingPhrases);
   if (phrases.length === 0) return results;
 
   // Sort by length descending so longer phrases match first
@@ -335,6 +354,7 @@ export function detectHedging(text: string, phraseList?: string[]): Array<{
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       phrase: match[0],
       index: match.index,
@@ -351,7 +371,7 @@ export function detectAdverbs(text: string, wordList?: string[]): Array<{
   length: number;
 }> {
   const results: Array<{ word: string; index: number; length: number }> = [];
-  const words = wordList ?? defaultFillerAdverbs;
+  const words = nonemptyStrings(wordList ?? defaultFillerAdverbs);
   if (words.length === 0) return results;
 
   const pattern = new RegExp(
@@ -361,6 +381,7 @@ export function detectAdverbs(text: string, wordList?: string[]): Array<{
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (advanceIfEmpty(pattern, match)) continue;
     results.push({
       word: match[0],
       index: match.index,
@@ -399,10 +420,12 @@ export function detectAiTells(
 
   // Vocabulary tells: whole-word matches, including inflected variants
   for (const { word, variants, reason } of vocab) {
-    const forms = [word, ...(variants ?? [])].map(escapeForRegex).join('|');
-    const regex = new RegExp(`\\b(?:${forms})\\b`, 'gi');
+    const forms = nonemptyStrings([word, ...(variants ?? [])]).map(escapeForRegex);
+    if (forms.length === 0) continue;
+    const regex = new RegExp(`\\b(?:${forms.join('|')})\\b`, 'gi');
     let match;
     while ((match = regex.exec(text)) !== null) {
+      if (advanceIfEmpty(regex, match)) continue;
       results.push({
         text: cleanSentinels(match[0]),
         index: match.index,
@@ -414,9 +437,11 @@ export function detectAiTells(
 
   // Phrase tells: case-insensitive whole-phrase matches
   for (const { phrase, reason } of phrases) {
+    if (phrase.trim() === '') continue;
     const regex = phraseRegex(phrase);
     let match;
     while ((match = regex.exec(text)) !== null) {
+      if (advanceIfEmpty(regex, match)) continue;
       results.push({
         text: cleanSentinels(match[0]),
         index: match.index,
