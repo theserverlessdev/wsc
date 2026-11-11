@@ -336,6 +336,11 @@ export function validateConfig(config: unknown): string[] {
             if (typeof entry.suggestion !== 'string' || !entry.suggestion) {
               errors.push(`detectors.${name}.add[${i}].suggestion must be a non-empty string`);
             }
+            for (const key of Object.keys(entry)) {
+              if (key !== 'word' && key !== 'suggestion') {
+                errors.push(`Unknown key in detectors.${name}.add[${i}]: "${key}"`);
+              }
+            }
           }
         }
       }

@@ -288,6 +288,13 @@ describe('validateConfig', () => {
     expect(errors.some(e => e.includes('word must be a non-empty string'))).toBe(true);
   });
 
+  it('nominalization add rejects extra keys', () => {
+    const errors = validateConfig({
+      detectors: { nominalizations: { add: [{ word: 'foo', suggestion: 'bar', extra: true }] } },
+    });
+    expect(errors.some(e => e.includes('Unknown key') && e.includes('extra'))).toBe(true);
+  });
+
   it('nominalization remove as non-array', () => {
     const errors = validateConfig({ detectors: { nominalizations: { remove: 'foo' } } });
     expect(errors.some(e => e.includes('remove must be an array'))).toBe(true);
