@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { AnalyzeOptions } from '../src/core/index.js';
 import {
@@ -181,6 +181,13 @@ export function createServer(): McpServer {
     },
     async ({ path, config: rawConfig }) => {
       try {
+        const info = await stat(path);
+        if (!info.isFile()) {
+          return { content: [{ type: 'text', text: 'Error: Path is not a regular file' }] };
+        }
+        if (info.size > MAX_TEXT_LENGTH * 4) {
+          return { content: [{ type: 'text', text: `Error: File exceeds maximum length of ${MAX_TEXT_LENGTH} characters` }] };
+        }
         const text = await readFile(path, 'utf-8');
         if (text.length > MAX_TEXT_LENGTH) {
           return { content: [{ type: 'text', text: `Error: File exceeds maximum length of ${MAX_TEXT_LENGTH} characters` }] };

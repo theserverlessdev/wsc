@@ -302,6 +302,22 @@ describe('createServer — MCP integration', () => {
   // Node's fs module. The Error path is fully covered by the nonexistent
   // file test above.
 
+  it('check_file returns error for a directory without reading it', async () => {
+    const dir = join(tmpdir(), `wsc-test-dir-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      const result = await client.callTool({
+        name: 'check_file',
+        arguments: { path: dir },
+      });
+      const text = (result.content as any)[0].text;
+      expect(text).toContain('Error');
+      expect(text).toMatch(/not a regular file/i);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('check_file returns error for file exceeding max length', async () => {
     const tmpFile = join(tmpdir(), `wsc-test-big-${Date.now()}.txt`);
     await writeFile(tmpFile, 'a'.repeat(100_001), 'utf-8');
