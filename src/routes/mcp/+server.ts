@@ -18,6 +18,21 @@ export const POST: RequestHandler = async ({ request }) => {
     });
   }
 
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return new Response(JSON.stringify({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32600, message: 'Invalid Request' },
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      }
+    });
+  }
+
   const result = await handleMcpRequest(body);
 
   return new Response(JSON.stringify(result), {

@@ -16,16 +16,20 @@ import type { WscConfig } from '../core';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   method: string;
   params?: Record<string, unknown>;
 }
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
-  id: string | number;
+  id: string | number | null;
   result?: unknown;
   error?: { code: number; message: string; data?: unknown };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 const TOOLS = [
@@ -205,11 +209,15 @@ function handleListWordLists(): { content: Array<{ type: string; text: string }>
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 }
 
-export async function handleMcpRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-  const { jsonrpc, id, method, params } = request;
+export async function handleMcpRequest(request: unknown): Promise<JsonRpcResponse> {
+  if (!isPlainObject(request)) {
+    return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
+  }
+
+  const { jsonrpc, id, method, params } = request as JsonRpcRequest;
 
   if (jsonrpc !== '2.0') {
-    return { jsonrpc: '2.0', id: id ?? 0, error: { code: -32600, message: 'Invalid JSON-RPC version' } };
+    return { jsonrpc: '2.0', id: id ?? null, error: { code: -32600, message: 'Invalid JSON-RPC version' } };
   }
 
   switch (method) {
