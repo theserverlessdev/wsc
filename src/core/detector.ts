@@ -188,6 +188,24 @@ export function removeDuplicateWord(
 }
 
 /**
+ * Remove every duplicate reported by a single detectDuplicateWords pass,
+ * right-to-left so earlier indexes stay valid. Equivalent to the old
+ * detect-remove-repeat loop without the quadratic rescans.
+ */
+export function fixDuplicateWords(text: string): { text: string; fixes: string[] } {
+  const duplicates = detectDuplicateWords(text);
+  let result = text;
+  const fixes: string[] = [];
+  for (let i = duplicates.length - 1; i >= 0; i--) {
+    const d = duplicates[i];
+    fixes.push(d.word);
+    result = removeDuplicateWord(result, d.index, d.length);
+  }
+  fixes.reverse();
+  return { text: result, fixes };
+}
+
+/**
  * Split text into sentences, preserving positions. Handles abbreviations,
  * decimals, ellipses, closing quotes/brackets after terminators, Markdown
  * block boundaries, and CRLF line endings. Shared by detectLongSentences and

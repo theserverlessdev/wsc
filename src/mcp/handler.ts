@@ -1,6 +1,5 @@
 import {
-  detectDuplicateWords,
-  removeDuplicateWord,
+  fixDuplicateWords,
   allWeaselWords,
   nominalizations,
   hedgingPhrases,
@@ -158,26 +157,18 @@ function handleCheckText(args: Record<string, unknown>): { content: Array<{ type
 }
 
 function handleFixDuplicates(args: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
-  let text = args.text as string;
-  if (!text || typeof text !== 'string') {
+  const original = args.text as string;
+  if (!original || typeof original !== 'string') {
     throw { code: -32602, message: 'Missing or invalid "text" argument' };
   }
 
-  const fixes: string[] = [];
-  let duplicates = detectDuplicateWords(text);
-
-  while (duplicates.length > 0) {
-    const d = duplicates[duplicates.length - 1];
-    fixes.push(d.word);
-    text = removeDuplicateWord(text, d.index, d.length);
-    duplicates = detectDuplicateWords(text);
-  }
+  const { text, fixes } = fixDuplicateWords(original);
 
   let output: string;
   if (fixes.length === 0) {
     output = `No duplicate words found. Text is clean.\n\n${text}`;
   } else {
-    output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.reverse().join(', ')}\n\nCleaned text:\n${text}`;
+    output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.join(', ')}\n\nCleaned text:\n${text}`;
   }
 
   return { content: [{ type: 'text', text: output }] };

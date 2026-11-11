@@ -1,5 +1,6 @@
 export {
   detectWeaselWords, detectPassiveVoice, detectDuplicateWords, removeDuplicateWord,
+  fixDuplicateWords,
   detectLongSentences, detectNominalizations, detectHedging, detectAdverbs,
   detectAiTells, splitSentences,
 } from './detector.js';

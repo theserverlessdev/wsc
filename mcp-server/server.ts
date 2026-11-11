@@ -4,8 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { AnalyzeOptions } from '../src/core/index.js';
 import {
-  detectDuplicateWords,
-  removeDuplicateWord,
+  fixDuplicateWords,
   allWeaselWords,
   nominalizations,
   hedgingPhrases,
@@ -123,22 +122,13 @@ export function createServer(): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ text }) => {
-      let cleaned = text;
-      const fixes: string[] = [];
-      let duplicates = detectDuplicateWords(cleaned);
-
-      while (duplicates.length > 0) {
-        const d = duplicates[duplicates.length - 1];
-        fixes.push(d.word);
-        cleaned = removeDuplicateWord(cleaned, d.index, d.length);
-        duplicates = detectDuplicateWords(cleaned);
-      }
+      const { text: cleaned, fixes } = fixDuplicateWords(text);
 
       let output: string;
       if (fixes.length === 0) {
         output = `No duplicate words found. Text is clean.\n\n${cleaned}`;
       } else {
-        output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.reverse().join(', ')}\n\nCleaned text:\n${cleaned}`;
+        output = `Removed ${fixes.length} duplicate word${fixes.length !== 1 ? 's' : ''}: ${fixes.join(', ')}\n\nCleaned text:\n${cleaned}`;
       }
 
       return { content: [{ type: 'text', text: output }] };
