@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectLongSentences } from '../../src/core/detector';
+import { detectLongSentences, splitSentences } from '../../src/core/detector';
 
 describe('detectLongSentences', () => {
   it('returns empty for empty string', () => {
@@ -185,3 +185,27 @@ describe('detectLongSentences', () => {
     expect(results[0].wordCount).toBe(35);
   });
 });
+
+describe('splitSentences abbreviation back-walk (audit #3)', () => {
+  it('still treats Dr. and e.g. as abbreviations, not sentence ends', () => {
+    const sentences = splitSentences('Dr. Smith visited e.g. Paris today.');
+    expect(sentences).toHaveLength(1);
+  });
+
+  it('still splits at a period that is not an abbreviation', () => {
+    const sentences = splitSentences('Hello. World.');
+    expect(sentences.map(s => s.text)).toEqual(['Hello.', 'World.']);
+  });
+
+  it("walks 'a.' repeated 50k times in under 200ms", () => {
+    // Each '.' still triggers the abbreviation back-walk even when the
+    // next character is not whitespace (so this stays one long sentence).
+    const text = 'a.'.repeat(50000);
+    const start = performance.now();
+    const sentences = splitSentences(text);
+    const elapsed = performance.now() - start;
+    expect(sentences.length).toBeGreaterThanOrEqual(1);
+    expect(elapsed).toBeLessThan(200);
+  });
+});
+

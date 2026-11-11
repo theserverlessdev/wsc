@@ -13,6 +13,10 @@ import {
   aiTellsPatterns as defaultAiPatterns,
 } from "./words.js";
 
+// A run longer than the longest abbreviation can never match one, so the
+// abbreviation back-walk in splitSentences is capped at this + 1.
+const MAX_ABBREVIATION_LEN = [...abbreviations].reduce((m, a) => Math.max(m, a.length), 0);
+
 function escapeForRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -233,10 +237,12 @@ export function splitSentences(text: string): Array<{ text: string; index: numbe
         continue;
       }
 
-      // Check for abbreviation
+      // Check for abbreviation. Walk back at most MAX_ABBREVIATION_LEN + 1
+      // characters: anything longer cannot be an abbreviation.
       if (text[i] === '.') {
+        const minStart = Math.max(0, i - (MAX_ABBREVIATION_LEN + 1));
         let wordStart = i - 1;
-        while (wordStart >= 0 && /[a-zA-Z.]/.test(text[wordStart])) {
+        while (wordStart >= minStart && /[a-zA-Z.]/.test(text[wordStart])) {
           wordStart--;
         }
         wordStart++;
