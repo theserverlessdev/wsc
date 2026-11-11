@@ -35,6 +35,13 @@ export async function run(argv: string[] = process.argv): Promise<number> {
         resultCode = 2;
         return;
       }
+
+      const maxWarnings = parseMaxWarnings(options.maxWarnings);
+      if (maxWarnings === null) {
+        process.stderr.write('Error: --max-warnings must be an integer\n');
+        resultCode = 2;
+        return;
+      }
       // FORCE_COLOR is re-read here (not just at picocolors import time) so
       // color can be forced per invocation; picocolors resolves separately
       // under cli/node_modules and root node_modules, so its import-time
@@ -70,7 +77,7 @@ export async function run(argv: string[] = process.argv): Promise<number> {
           }
         }
         process.stdout.write(formatSummary(result.summary.total, 1, summaryColor) + '\n');
-        resultCode = exitCode(result.summary.total, options.maxWarnings);
+        resultCode = exitCode(result.summary.total, maxWarnings);
         return;
       }
 
@@ -153,7 +160,7 @@ export async function run(argv: string[] = process.argv): Promise<number> {
         process.stdout.write(formatSummary(totalIssues, resolvedFiles.length, summaryColor) + '\n');
       }
 
-      resultCode = exitCode(totalIssues, options.maxWarnings);
+      resultCode = exitCode(totalIssues, maxWarnings);
     });
 
   cli.command('list [detector]', 'List word lists for a detector')
@@ -237,6 +244,16 @@ export function exitCode(totalIssues: number, maxWarnings: number): number {
   const max = Number(maxWarnings);
   if (!Number.isFinite(max) || max < 0) return 0;
   return totalIssues > max ? 1 : 0;
+}
+
+/** Integer >= -1; otherwise the check command exits 2. cac may pass a string. */
+function parseMaxWarnings(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw >= -1) return raw;
+  if (typeof raw === 'string' && /^-?\d+$/.test(raw)) {
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= -1) return n;
+  }
+  return null;
 }
 
 async function readStdin(): Promise<string> {
