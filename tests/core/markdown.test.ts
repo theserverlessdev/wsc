@@ -20,6 +20,14 @@ describe('maskMarkdown', () => {
     expect(out.split('\n').length).toBe(input.split('\n').length);
   });
 
+  it('blanks tilde-fenced code blocks to spaces', () => {
+    const input = 'Before.\n\n~~~\nconst configuration = 1;\n~~~\n\nAfter.';
+    const out = maskMarkdown(input);
+    expect(out).not.toContain('configuration');
+    expect(out).toContain('Before.');
+    expect(out).toContain('After.');
+  });
+
   it('blanks fenced code blocks to spaces (whole-line construct)', () => {
     const input = 'Before.\n\n```js\nconst configuration = 1;\n```\n\nAfter.';
     const out = maskMarkdown(input);

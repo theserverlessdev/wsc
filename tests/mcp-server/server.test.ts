@@ -183,6 +183,14 @@ describe('createServer — MCP integration', () => {
     expect(names).toContain('check_file');
   });
 
+  it('list_word_lists returns catalog samples', async () => {
+    const result = await client.callTool({ name: 'list_word_lists', arguments: {} });
+    const text = (result.content as any)[0].text;
+    expect(text).toContain('Detector Word Lists');
+    expect(text).toContain('Weasel Words');
+    expect(text).toContain('wsc.theserverless.dev/words');
+  });
+
   it('check_text detects weasel words', async () => {
     const result = await client.callTool({
       name: 'check_text',
@@ -301,6 +309,22 @@ describe('createServer — MCP integration', () => {
   // total branches) is defensive code for a case that cannot occur with
   // Node's fs module. The Error path is fully covered by the nonexistent
   // file test above.
+
+  it('check_file rejects a file larger than the byte-size cap without reading it', async () => {
+    const tmpFile = join(tmpdir(), `wsc-test-huge-${Date.now()}.txt`);
+    await writeFile(tmpFile, 'a'.repeat(400_001), 'utf-8');
+    try {
+      const result = await client.callTool({
+        name: 'check_file',
+        arguments: { path: tmpFile },
+      });
+      const text = (result.content as any)[0].text;
+      expect(text).toContain('Error');
+      expect(text).toContain('100000');
+    } finally {
+      await unlink(tmpFile);
+    }
+  });
 
   it('check_file returns error for a directory without reading it', async () => {
     const dir = join(tmpdir(), `wsc-test-dir-${Date.now()}`);
