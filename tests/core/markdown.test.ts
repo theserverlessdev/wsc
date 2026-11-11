@@ -88,6 +88,22 @@ describe('maskMarkdown', () => {
     expect(out).toContain('text');
     expect(out).not.toContain('code line');
   });
+
+  it('leaves an unclosed HTML comment in place (does not blank following prose)', () => {
+    const input = 'Before. <!-- not closed\nThis is very clearly prose.';
+    const out = maskMarkdown(input);
+    expect(out).toContain('very clearly prose');
+    expect(out).toContain('<!-- not closed');
+  });
+
+  it('masks many unclosed <!-- openers in under 200ms', () => {
+    const input = '<!--'.repeat(25000);
+    const start = performance.now();
+    const out = maskMarkdown(input);
+    const elapsed = performance.now() - start;
+    expect(out).toBe(input);
+    expect(elapsed).toBeLessThan(200);
+  });
 });
 
 describe('inline masking does not create false adjacency', () => {
