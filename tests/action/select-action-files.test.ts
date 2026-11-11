@@ -228,6 +228,7 @@ describe('action.yml only-changed wiring', () => {
       expect(yml).toContain('select-action-files.mjs');
       expect(yml).toContain('total-issues=0');
       expect(yml).toContain('Skipping check.');
+      expect(yml).toContain("grep -E '^Found [0-9]+ issue'");
     }
   });
 });
