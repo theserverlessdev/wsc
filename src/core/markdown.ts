@@ -32,19 +32,36 @@ export function maskMarkdown(input: string): string {
   const lines = input.split('\n');
   let inFence = false;
   let fenceChar = '';
+  let fenceLen = 0;
 
   const masked = lines.map((line) => {
     const openMatch = line.match(/^\s*(`{3,}|~{3,})/);
 
     if (inFence) {
       const closeMatch = line.match(/^\s*(`{3,}|~{3,})\s*$/);
-      if (closeMatch && closeMatch[1][0] === fenceChar) inFence = false;
+      if (
+        closeMatch &&
+        closeMatch[1][0] === fenceChar &&
+        closeMatch[1].length >= fenceLen
+      ) {
+        inFence = false;
+      }
       return blankLine(line);
     }
 
     if (openMatch) {
+      const fence = openMatch[1];
+      // CommonMark: a backtick fence's info string cannot contain backticks.
+      if (fence[0] === '`') {
+        const fenceAt = line.indexOf(fence);
+        const info = line.slice(fenceAt + fence.length);
+        if (info.includes('`')) {
+          return line.replace(/`[^`\n]*`/g, blankInline);
+        }
+      }
       inFence = true;
-      fenceChar = openMatch[1][0];
+      fenceChar = fence[0];
+      fenceLen = fence.length;
       return blankLine(line);
     }
 

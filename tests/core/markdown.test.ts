@@ -104,6 +104,24 @@ describe('maskMarkdown', () => {
     expect(out).toBe(input);
     expect(elapsed).toBeLessThan(200);
   });
+
+  it('does not treat a ```js``` line as a fence opener (audit #10)', () => {
+    const text = ' ```js``` \nThis sentence is very clearly basically prose.';
+    const result = analyzeText(text, undefined, { markdown: true });
+    expect(result.issues.weaselWords.length).toBeGreaterThan(0);
+    expect(text.substring(
+      result.issues.weaselWords[0].index,
+      result.issues.weaselWords[0].index + result.issues.weaselWords[0].length,
+    ).toLowerCase()).toMatch(/very|clearly|basically/);
+  });
+
+  it('closes a fence only on the same character with length >= the opener', () => {
+    const text = '````outer\n```inner\ncode basically\n```\n````\nThis is very clearly prose.';
+    const result = analyzeText(text, undefined, { markdown: true });
+    const weasels = result.issues.weaselWords.map(w => w.word.toLowerCase());
+    expect(weasels).not.toContain('basically');
+    expect(weasels).toContain('very');
+  });
 });
 
 describe('inline masking does not create false adjacency', () => {
